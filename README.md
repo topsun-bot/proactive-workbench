@@ -1,6 +1,36 @@
 # Proactive Workbench
 
-跨平台主动性工作台。主动性 agent 统一管理日历、天气、闹钟等工具，感知上下文、自主生成目标并持续规划。核心卖点是**跨工具协作**：例如「明天早上八点提醒带伞」会同时用到天气、日历和闹钟。
+跨平台主动性工作台：一个**纯软件**的工作台，不是机器人，没有四肢，就是一个持续运行的「大脑」。
+
+## 产品定义（2026-10-09 张益新电话确认）
+
+1. **纯软件**：只在 Linux 上作为程序运行，不控制任何硬件、机械或身体动作。
+2. **核心是主动 agent**：持续感知环境（时间、日程、天气等工具数据），自主生成目标，持续规划，**不等人下指令**；只在需要时打扰人。
+3. **交付物是 Linux 程序**：GitHub Actions `ubuntu-latest` 构建，产物为 `linux-amd64` 的 `.tar.gz`。不再做 Mac DMG。
+4. **跨工具协作**：主动 agent 统一调度日历、天气、闹钟等工具，例如「明天早上八点提醒带伞」同时用到天气、日历和闹钟。
+
+## 范围
+
+**做：**
+- 主动性内核：感知 → 生成目标 → 规划 → 决定何时打扰
+- 工具层：统一插件接口，首版 3–5 个工具（见 `TODO.md` 第 5 项），之后逐步扩展
+- Linux 程序（当前为 Go CLI）及 ubuntu-latest CI 构建、测试、打包
+
+**不做（不在需求内）：**
+- 机器人或任何实体动作：「跟随人」「取外卖」等全部取消
+- 硬件、传感器、电机、四肢控制
+- macOS 客户端、DMG 安装包、Apple 证书 / 公证 / 签名
+- macOS 构建机
+
+## 目标架构（主动的「大脑」）
+
+```
+感知（时间、地点/活动、天气、日程） → 生成目标 → 规划 → 打扰策略（何时提醒人） → 通过工具层执行
+```
+
+- **工具层**（已在 main）：`internal/tool` 插件接口 + weather（mock）/ calendar / alarm（内存）桩，`internal/planner` 把目标路由到 flow，`internal/flow/umbrella` 是跨工具演示。
+- **数据源 + 主动性内核**（未合并，见 [PR #3](https://github.com/topsun-bot/proactive-workbench/pull/3)，A4 技术互联，草稿）：提议 Open-Meteo 天气、本地 ICS 日历（CalDAV 先占位）、`internal/proactivity` 感知→目标→规划→打扰循环。合并前 main 上**没有**这些功能。
+- **评审修复**（未合并，见 [PR #2](https://github.com/topsun-bot/proactive-workbench/pull/2)，Shaoruru）。
 
 ## Tech choice
 
