@@ -350,11 +350,19 @@ else
 fi
 if [ -n "$SHA_FILE" ] && command -v sha256sum >/dev/null 2>&1; then
   echo "sha256:   $SHA_FILE"
-  if ! (cd "$(dirname "$TARBALL")" && sha256sum -c "$(basename "$SHA_FILE")" >"${LOG_DIR}/sha256.log" 2>&1); then
-    echo "WARNING: sha256 check failed. Raw output:" >&2
-    cat "${LOG_DIR}/sha256.log" >&2
+  # package-linux.sh writes `sha256sum "$TARBALL"`, so the recorded path is the
+  # CI absolute path. Compare hashes, not paths.
+  expected="$(awk '{print $1}' "$SHA_FILE" | head -n 1)"
+  actual="$(sha256sum "$TARBALL" | awk '{print $1}')"
+  {
+    echo "sha_file=$SHA_FILE"
+    echo "expected=$expected"
+    echo "actual=$actual"
+  } >"${LOG_DIR}/sha256.log"
+  if [ -z "$expected" ] || [ "$expected" != "$actual" ]; then
+    echo "WARNING: sha256 mismatch. expected=${expected:-empty} actual=${actual:-empty} (file records a CI path; compared hashes only)" >&2
   else
-    echo "sha256:   ok"
+    echo "sha256:   ok ($actual)"
   fi
 fi
 
@@ -450,10 +458,8 @@ echo "utc_end=$(date -u +%Y-%m-%dT%H:%M:%SZ)" >>"$ENV_FILE"
   fi
 } | tee "$SUMMARY"
 
-BUNDLE_DIR="$(dirname "$OUT_DIR")"
-BUNDLE_NAME="repro-${SHORT_SHA}-${STAMP}.tar.gz"
-BUNDLE_PATH="${BUNDLE_DIR}/${BUNDLE_NAME}"
-tar -C "$BUNDLE_DIR" -czf "$BUNDLE_PATH" "$(basename "$OUT_DIR")"
+BUNDLE_PATH="${OUT_DIR}.tar.gz"
+tar -C "$(dirname "$OUT_DIR")" -czf "$BUNDLE_PATH" "$(basename "$OUT_DIR")"
 echo
 echo "bundle:   $BUNDLE_PATH"
 echo "Attach that tarball to the GitHub issue (see .github/ISSUE_TEMPLATE/bug_report.md)."

@@ -29,7 +29,7 @@ labels: bug
 
 ## 日志 / Logs
 
-把 `./tests/repro/run_artifact.sh` 打出的 **bundle**（`tests/repro/.repro/repro-<sha>-<utc>.tar.gz`）挂到本 issue。
+把 `./tests/repro/run_artifact.sh` 打出的 **bundle**（默认 `tests/repro/.repro/<sha>-<utc>.tar.gz`）挂到本 issue。
 
 包内应有：
 
