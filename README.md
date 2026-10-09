@@ -1,26 +1,36 @@
 # Proactive Workbench
 
-跨平台主动性工作台：一个**纯软件**的工作台，不是机器人，没有四肢，就是一个持续运行的「大脑」。
+主动性工作台：一个**纯软件**的工作台，不是机器人，没有四肢，就是一个持续运行的「大脑」。一套共用的 Go 主动 agent 内核，两个前端：Linux 命令行 + Mac 客户端（界面参考 [Today](https://today.ai/)）。
 
-## 产品定义（2026-10-09 张益新电话确认）
+## 产品定义（2026-10-09 张益新确认；替代当天上午的「只做 Linux」）
 
-1. **纯软件**：只在 Linux 上作为程序运行，不控制任何硬件、机械或身体动作。
-2. **核心是主动 agent**：持续感知环境（时间、日程、天气等工具数据），自主生成目标，持续规划，**不等人下指令**；只在需要时打扰人。
-3. **交付物是 Linux 程序**：GitHub Actions `ubuntu-latest` 构建，产物为 `linux-amd64` 的 `.tar.gz`。不再做 Mac DMG。
-4. **跨工具协作**：主动 agent 统一调度日历、天气、闹钟等工具，例如「明天早上八点提醒带伞」同时用到天气、日历和闹钟。
+1. **纯软件**：不控制任何硬件、机械或身体动作。
+2. **核心是主动 agent**：持续感知环境，自主生成目标，持续规划，**不等人下指令**；先开口给建议，但先判断该不该打扰。
+3. **能力向 Today 看齐**（目标，逐步实现）：
+   - **活的记忆**：日程、人、偏好、长期目标
+   - **晨间简报**：每天早上主动给出当天概览
+   - **先开口的建议** + 打扰判断（何时说、何时不说）
+   - **定时例程**（routines）
+4. **共用内核，两种交付物**：
+   - Linux：Go 命令行，GitHub Actions `ubuntu-latest` 构建，产物 `linux-amd64` `.tar.gz`
+   - Mac：Mac 客户端，GitHub Actions `macos-latest` 构建，产物为**未签名** DMG
+5. **跨工具协作**：例如「明天早上八点提醒带伞」同时用到天气、日历和闹钟。按已批准的 `docs/PRD.md`，**不下雨也照样提醒**，文案说明降水概率。
 
 ## 范围
 
 **做：**
-- 主动性内核：感知 → 生成目标 → 规划 → 决定何时打扰
-- 工具层：统一插件接口，首版 3–5 个工具（见 `TODO.md` 第 5 项），之后逐步扩展
-- Linux 程序（当前为 Go CLI）及 ubuntu-latest CI 构建、测试、打包
+- 共用 Go 主动性内核：感知 → 生成目标 → 规划 → 打扰判断；活的记忆、晨间简报、主动建议、定时例程
+- 工具层：统一插件接口，首版工具见 `docs/PRD.md` / `config/scope.yaml`，之后逐步扩展
+- Linux 命令行及 `ubuntu-latest` CI 构建、测试、打包（tar.gz）
+- Mac 客户端，界面参考 Today：晨间简报、今日任务卡片、信号面板、例程列表、主动建议；与 Linux 共用同一内核
+- `macos-latest` CI 构建**未签名** DMG
+
+**后续（暂不做）：**
+- Apple 开发者证书、签名、公证（见 `TODO.md` 第 8 项）
 
 **不做（不在需求内）：**
 - 机器人或任何实体动作：「跟随人」「取外卖」等全部取消
 - 硬件、传感器、电机、四肢控制
-- macOS 客户端、DMG 安装包、Apple 证书 / 公证 / 签名
-- macOS 构建机
 
 ## 目标架构（主动的「大脑」）
 
@@ -30,13 +40,15 @@
 
 - **工具层**（已在 main）：`internal/tool` 插件接口 + weather（mock）/ calendar / alarm（内存）桩，`internal/planner` 把目标路由到 flow，`internal/flow/umbrella` 是跨工具演示。
 - **数据源 + 主动性内核**（未合并，见 [PR #3](https://github.com/topsun-bot/proactive-workbench/pull/3)，A4 技术互联，草稿）：提议 Open-Meteo 天气、本地 ICS 日历（CalDAV 先占位）、`internal/proactivity` 感知→目标→规划→打扰循环。合并前 main 上**没有**这些功能。
+- **Mac 客户端**（尚未开始，见 `TODO.md` 第 15、16 项）：界面参考 Today，调用同一 Go 内核。main 上目前**没有** Mac 代码或 macOS CI。
+- **Today 类能力**（记忆、晨间简报、主动建议、例程）：尚未实现，见 `TODO.md` 第 17 项。
 - **评审修复**（未合并，见 [PR #2](https://github.com/topsun-bot/proactive-workbench/pull/2)，Shaoruru）。
 
 ## Tech choice
 
-**Go CLI on Linux** (no desktop GUI, no macOS, no Swift).
+**Current main: Go CLI on Linux.** A Mac client sharing the same Go kernel is now in scope (2026-10-09) but not yet implemented.
 
-A Mac is not available for this milestone, and a GUI would not run headlessly in CI. A single static Go binary:
+For the first milestone a GUI would not run headlessly in CI. A single static Go binary:
 
 - builds and runs on `ubuntu-latest` and on this Linux development environment
 - needs no display, certificates, or runtime (CGO is off)
@@ -45,7 +57,7 @@ A Mac is not available for this milestone, and a GUI would not run headlessly in
 
 The architecture still matches the original workbench idea: a **tool plugin interface**, a **planner** that routes a goal to a flow, and stub tools that later become real integrations.
 
-Minimum: Go 1.22, Linux. Windows/macOS clients are out of scope here.
+Minimum: Go 1.22, Linux. The Mac client is planned (TODO 15–16); Windows is out of scope.
 
 ## Layout
 
@@ -117,7 +129,7 @@ On every **push** and **workflow_dispatch**, `.github/workflows/linux-build.yml`
 3. Builds `proactive-workbench-0.1.0-linux-amd64.tar.gz` and uploads it as an Actions artifact
 4. Extracts the archive and runs `workbench version` / `workbench tools` to prove the artifact is executable
 
-There are no macOS runners, DMGs, or code signing steps.
+Today the workflow has no macOS runner or DMG step yet; an unsigned-DMG `macos-latest` job is planned (TODO 16). No code signing.
 
 ## Status
 
