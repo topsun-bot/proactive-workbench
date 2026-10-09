@@ -1,6 +1,36 @@
 # Proactive Workbench
 
-跨平台主动性工作台。主动性 agent 统一管理日历、天气、闹钟等工具，感知上下文、自主生成目标并持续规划。核心卖点是**跨工具协作**：例如「明天早上八点提醒带伞」会同时用到天气、日历和闹钟。
+跨平台主动性工作台：一个**纯软件**的工作台，不是机器人，没有四肢，就是一个持续运行的「大脑」。
+
+## 产品定义（2026-10-09 张益新电话确认）
+
+1. **纯软件**：只在 Linux 上作为程序运行，不控制任何硬件、机械或身体动作。
+2. **核心是主动 agent**：持续感知环境（时间、日程、天气等工具数据），自主生成目标，持续规划，**不等人下指令**；只在需要时打扰人。
+3. **交付物是 Linux 程序**：GitHub Actions `ubuntu-latest` 构建，产物为 `linux-amd64` 的 `.tar.gz`。不再做 Mac DMG。
+4. **跨工具协作**：主动 agent 统一调度日历、天气、闹钟等工具，例如「明天早上八点提醒带伞」同时用到天气、日历和闹钟。
+
+## 范围
+
+**做：**
+- 主动性内核：感知 → 生成目标 → 规划 → 决定何时打扰
+- 工具层：统一插件接口，首版 3–5 个工具（见 `TODO.md` 第 5 项），之后逐步扩展
+- Linux 程序（当前为 Go CLI）及 ubuntu-latest CI 构建、测试、打包
+
+**不做（不在需求内）：**
+- 机器人或任何实体动作：「跟随人」「取外卖」等全部取消
+- 硬件、传感器、电机、四肢控制
+- macOS 客户端、DMG 安装包、Apple 证书 / 公证 / 签名
+- macOS 构建机
+
+## 目标架构（主动的「大脑」）
+
+```
+感知（时间、地点/活动、天气、日程） → 生成目标 → 规划 → 打扰策略（何时提醒人） → 通过工具层执行
+```
+
+- **工具层**（已在 main）：`internal/tool` 插件接口 + weather（mock）/ calendar / alarm（内存）桩，`internal/planner` 把目标路由到 flow，`internal/flow/umbrella` 是跨工具演示。
+- **数据源 + 主动性内核**（[PR #3](https://github.com/topsun-bot/proactive-workbench/pull/3)，A4）：Open-Meteo 天气、本地 ICS 日历（CalDAV 占位）、本地记忆、morning brief、例程调度。语言无关边界见 `internal/proactivity/API.md`。工具插件仍由 Shaoruru 的 `internal/tools/*` 演示。
+- **评审修复**（未合并，见 [PR #2](https://github.com/topsun-bot/proactive-workbench/pull/2)，Shaoruru）。
 
 ## Tech choice
 
@@ -21,19 +51,18 @@ Minimum: Go 1.22, Linux. Windows/macOS clients are out of scope here.
 
 ```
 cmd/workbench/             CLI (demo, plan, tools, version)
-cmd/proactivity/           One sense→goal→plan→interrupt tick (mocks)
+cmd/proactivity/           Brain CLI (tick, brief, memory, serve --json)
 internal/tool/             WorkbenchTool protocol + registry
 internal/tools/weather|calendar|alarm
-internal/datasources/      Weather API + Linux calendar/reminders (A4)
-internal/proactivity/      Perception → goal → plan → interrupt policy
+internal/datasources/      Weather + Linux calendar/situation (A4)
+internal/memory/           Local on-disk long-term memory
+internal/proactivity/      Sense → goal → plan → interrupt + scheduler
 internal/flow/umbrella     Cross-tool demo
 internal/planner           Goal → flow
 internal/intent            Phrase matching (EN + 中文)
 scripts/package-linux.sh   linux/amd64 tar.gz
 .github/workflows/         ubuntu-latest CI
 ```
-
-`internal/datasources` and `internal/proactivity` are a sibling layer, not a rewrite of the plugins above. Design notes: `internal/datasources/DESIGN.md`.
 
 ## Plugin interface
 
@@ -66,20 +95,7 @@ go run ./cmd/workbench tools
 
 `--now=RFC3339` freezes the clock (CI uses `2026-10-09T13:00:00+08:00` so tomorrow is `2026-10-10 08:00`).
 
-## Proactivity tick (data sources + interrupt policy)
-
-A second binary runs **one** perceive → goal → plan → interrupt cycle against **fixture** weather, situation, and calendar (never live network):
-
-```bash
-go run ./cmd/proactivity tick --now=2026-10-10T15:00:00+08:00 --repeat=2
-go run ./cmd/proactivity tick --weather=rain --now=2026-10-09T13:00:00+08:00
-```
-
-- Weather API: **Open-Meteo** (keyless). Unit tests parse fixture JSON through an injected HTTP `Doer`.
-- Linux calendar: **local ICS** (recommended). CalDAV is a stub that does not dial. EventKit does not apply.
-- Interrupt policy: score threshold, quiet hours (22:00–08:00), **dedupe** so an unchanged situation is not re-notified.
-
-See `internal/datasources/DESIGN.md` and `internal/proactivity/README.md`.
+The brain CLI (`cmd/proactivity`) is a sibling binary: fixture tick, morning brief, local memory CRUD, and `127.0.0.1` JSON. See `internal/proactivity/API.md`.
 
 ## Tests
 
@@ -104,7 +120,7 @@ On every **push** and **workflow_dispatch**, `.github/workflows/linux-build.yml`
 
 1. `go test ./...`
 2. Runs the umbrella demo twice (rain and clear) so the plan text is in the job log
-3. Runs `proactivity tick --repeat=2` against fixtures (park, then dedupe)
+3. Runs `proactivity tick` against fixtures (no network)
 4. Builds `proactive-workbench-0.1.0-linux-amd64.tar.gz` and uploads it as an Actions artifact
 5. Extracts the archive and runs `workbench version` / `workbench tools` / `proactivity tick` to prove the artifact is executable
 
@@ -112,4 +128,4 @@ There are no macOS runners, DMGs, or code signing steps.
 
 ## Status
 
-First-batch tool scope is still open (`TODO.md` item 5). Weather/calendar **data-source interfaces** and the interrupt policy (items 6–7) live under `internal/datasources` and `internal/proactivity`. Shaoruru’s umbrella plugins remain the in-memory demo until they wrap those sources.
+First-batch tool scope is still open (`TODO.md` item 5). Items 6–7 (data sources + proactivity core) are implemented on [PR #3](https://github.com/topsun-bot/proactive-workbench/pull/3).
