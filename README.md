@@ -21,14 +21,19 @@ Minimum: Go 1.22, Linux. Windows/macOS clients are out of scope here.
 
 ```
 cmd/workbench/             CLI (demo, plan, tools, version)
+cmd/proactivity/           One sense→goal→plan→interrupt tick (mocks)
 internal/tool/             WorkbenchTool protocol + registry
 internal/tools/weather|calendar|alarm
+internal/datasources/      Weather API + Linux calendar/reminders (A4)
+internal/proactivity/      Perception → goal → plan → interrupt policy
 internal/flow/umbrella     Cross-tool demo
 internal/planner           Goal → flow
 internal/intent            Phrase matching (EN + 中文)
 scripts/package-linux.sh   linux/amd64 tar.gz
 .github/workflows/         ubuntu-latest CI
 ```
+
+`internal/datasources` and `internal/proactivity` are a sibling layer, not a rewrite of the plugins above. Design notes: `internal/datasources/DESIGN.md`.
 
 ## Plugin interface
 
@@ -61,6 +66,21 @@ go run ./cmd/workbench tools
 
 `--now=RFC3339` freezes the clock (CI uses `2026-10-09T13:00:00+08:00` so tomorrow is `2026-10-10 08:00`).
 
+## Proactivity tick (data sources + interrupt policy)
+
+A second binary runs **one** perceive → goal → plan → interrupt cycle against **fixture** weather, situation, and calendar (never live network):
+
+```bash
+go run ./cmd/proactivity tick --now=2026-10-10T15:00:00+08:00 --repeat=2
+go run ./cmd/proactivity tick --weather=rain --now=2026-10-09T13:00:00+08:00
+```
+
+- Weather API: **Open-Meteo** (keyless). Unit tests parse fixture JSON through an injected HTTP `Doer`.
+- Linux calendar: **local ICS** (recommended). CalDAV is a stub that does not dial. EventKit does not apply.
+- Interrupt policy: score threshold, quiet hours (22:00–08:00), **dedupe** so an unchanged situation is not re-notified.
+
+See `internal/datasources/DESIGN.md` and `internal/proactivity/README.md`.
+
 ## Tests
 
 ```bash
@@ -84,11 +104,12 @@ On every **push** and **workflow_dispatch**, `.github/workflows/linux-build.yml`
 
 1. `go test ./...`
 2. Runs the umbrella demo twice (rain and clear) so the plan text is in the job log
-3. Builds `proactive-workbench-0.1.0-linux-amd64.tar.gz` and uploads it as an Actions artifact
-4. Extracts the archive and runs `workbench version` / `workbench tools` to prove the artifact is executable
+3. Runs `proactivity tick --repeat=2` against fixtures (park, then dedupe)
+4. Builds `proactive-workbench-0.1.0-linux-amd64.tar.gz` and uploads it as an Actions artifact
+5. Extracts the archive and runs `workbench version` / `workbench tools` / `proactivity tick` to prove the artifact is executable
 
 There are no macOS runners, DMGs, or code signing steps.
 
 ## Status
 
-First-batch tool scope, live weather/calendar backends, and the proactive “when to interrupt” policy are still open (`TODO.md` items 5–7).
+First-batch tool scope is still open (`TODO.md` item 5). Weather/calendar **data-source interfaces** and the interrupt policy (items 6–7) live under `internal/datasources` and `internal/proactivity`. Shaoruru’s umbrella plugins remain the in-memory demo until they wrap those sources.

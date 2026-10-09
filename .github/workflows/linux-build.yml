@@ -44,6 +44,16 @@ jobs:
             --tz=Asia/Shanghai \
             --now=2026-10-09T13:00:00+08:00
 
+      # A4 hook: proactivity tick uses fixture sources only (no network).
+      - name: Run proactivity tick (park, then dedupe)
+        run: |
+          set -euo pipefail
+          go run ./cmd/proactivity tick \
+            --weather=clear \
+            --tz=Asia/Shanghai \
+            --now=2026-10-10T15:00:00+08:00 \
+            --repeat=2
+
       - name: Package Linux tar.gz
         run: ./scripts/package-linux.sh
 
@@ -65,6 +75,9 @@ jobs:
           tar -xzf "$ART" -C "$tmp"
           "$tmp"/proactive-workbench-0.1.0-linux-amd64/workbench version
           "$tmp"/proactive-workbench-0.1.0-linux-amd64/workbench tools
+          "$tmp"/proactive-workbench-0.1.0-linux-amd64/proactivity tick \
+            --now=2026-10-10T15:00:00+08:00 \
+            --tz=Asia/Shanghai
 
       - name: Upload Linux artifact
         uses: actions/upload-artifact@v4

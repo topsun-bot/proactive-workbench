@@ -1,0 +1,27 @@
+BEGIN:VCALENDAR
+VERSION:2.0
+PRODID:-//proactive-workbench//FIXTURE//EN
+CALSCALE:GREGORIAN
+X-WR-CALNAME:FIXTURE calendar — not a live store
+BEGIN:VEVENT
+UID:fixture-standup-20261009@proactive-workbench
+DTSTART;TZID=Asia/Shanghai:20261009T140000
+DTEND;TZID=Asia/Shanghai:20261009T143000
+SUMMARY:FIXTURE: Team standup (not a real appointment)
+DESCRIPTION:Synthetic fixture for unit tests. Not a live calendar item.
+LOCATION:FIXTURE
+BEGIN:VALARM
+ACTION:DISPLAY
+TRIGGER:-PT15M
+DESCRIPTION:FIXTURE reminder 15 minutes before standup
+END:VALARM
+END:VEVENT
+BEGIN:VEVENT
+UID:fixture-dentist-20261012@proactive-workbench
+DTSTART;TZID=Asia/Shanghai:20261012T100000
+DTEND;TZID=Asia/Shanghai:20261012T110000
+SUMMARY:FIXTURE: Dentist (not a real appointment)
+DESCRIPTION:Synthetic fixture for unit tests. Not a live calendar item.
+LOCATION:FIXTURE
+END:VEVENT
+END:VCALENDAR

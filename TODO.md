@@ -16,8 +16,8 @@
 | 3 | GitHub Actions 改用 ubuntu-latest 构建 Linux 可运行产物（去掉 macOS 构建机与 DMG） | 进行中 | Shaoruru | ubuntu-latest 上 Actions 跑绿，tar.gz artifact；workflow `Linux build` |
 | 4 | 「明天早上八点提醒带伞」跨工具演示在 Linux 上跑通（天气先 mock） | 进行中 | Shaoruru | `workbench demo`；雨天建日历+闹钟，晴天跳过；CI 日志打印输出 |
 | 5 | 首版范围：选 3–5 个工具，一页 PRD | 待办 | A3 产品经理 | 一页 PRD，张益新批准 |
-| 6 | 数据源：天气 API、日历/提醒权限 | 待办 | A4 技术互联 | 天气 API 调用示例 + 权限说明 |
-| 7 | 主动性内核设计：感知 → 目标 → 规划 → 何时打扰 | 待办 | A4 技术互联 | 设计文档 + 打扰规则，用「带伞」场景走通 |
+| 6 | 数据源：天气 API、日历/提醒权限 | 已完成 | A4 技术互联 | Open-Meteo（无 key）接口+fixture mock+注入 HTTP 适配器；Linux 日历推荐本地 ICS，CalDAV 为不联网的 stub；设计见 `internal/datasources/DESIGN.md`。commit 见本分支 PR |
+| 7 | 主动性内核设计：感知 → 目标 → 规划 → 何时打扰 | 已完成 | A4 技术互联 | `internal/proactivity` + `cmd/proactivity tick`；打扰策略：分数阈值、安静时段、相同 fingerprint 不重复打扰。带伞目标由雨天 fixture 生成（不改 Shaoruru umbrella 演示） |
 | 8 | Apple 开发者证书/公证 是否购买 | 搁置 | 张益新 | 短期无 Mac，搁置（2026-10-09） |
 | 9 | 在 Mac 上安装 DMG 并反馈 | 搁置 | 张益新 | 短期无 Mac，搁置（2026-10-09） |
 | 12 | 工作日巡检：构建、Linux 产物、带伞演示是否退化 | 待办 | PW 日常巡检 QA | 直接在 Linux 上验收，无需 Mac；巡检脚本提交到 tests/（附 commit 链接）；确认开启后每个工作日一份报告 |
