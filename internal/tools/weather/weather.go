@@ -12,13 +12,17 @@ import (
 type Condition string
 
 const (
-	Rain   Condition = "rain"
-	Clear  Condition = "clear"
-	Cloudy Condition = "cloudy"
+	Rain         Condition = "rain"
+	Clear        Condition = "clear"
+	Cloudy       Condition = "cloudy"
+	Unavailable  Condition = "unavailable"
 )
 
-func (c Condition) NeedsUmbrella() bool {
-	return c == Rain
+func (c Condition) NeedsUmbrella(thresholdPct int) bool {
+	if thresholdPct <= 0 {
+		thresholdPct = 50
+	}
+	return c.PrecipPct() >= thresholdPct
 }
 
 func (c Condition) DisplayName() string {
@@ -29,6 +33,8 @@ func (c Condition) DisplayName() string {
 		return "Clear"
 	case Cloudy:
 		return "Cloudy"
+	case Unavailable:
+		return "Unavailable"
 	default:
 		return string(c)
 	}
@@ -47,9 +53,22 @@ func (c Condition) TemperatureC() float64 {
 	}
 }
 
+func (c Condition) PrecipPct() int {
+	switch c {
+	case Rain:
+		return 80
+	case Cloudy:
+		return 20
+	case Clear:
+		return 5
+	default:
+		return 0
+	}
+}
+
 func ParseCondition(raw string) (Condition, bool) {
 	switch Condition(raw) {
-	case Rain, Clear, Cloudy:
+	case Rain, Clear, Cloudy, Unavailable:
 		return Condition(raw), true
 	default:
 		return "", false
@@ -66,35 +85,54 @@ const (
 type Forecast struct {
 	Condition     Condition
 	TemperatureC  float64
+	PrecipPct     int
 	LocationLabel string
 	ValidFor      time.Time
 	IsMock        bool
 	SourceLabel   string
+	Available     bool
 }
 
 func (f Forecast) Summary() string {
+	if !f.Available {
+		return SourceLabel + ": query failed (no fabricated values)"
+	}
 	src := f.SourceLabel
 	if src == "" {
 		src = SourceLabel
 	}
 	return src + ": " + f.Condition.DisplayName() +
-		", " + strconv.Itoa(int(f.TemperatureC)) + "°C in " + f.LocationLabel
+		", " + strconv.Itoa(int(f.TemperatureC)) + "°C, precip " +
+		strconv.Itoa(f.PrecipPct) + "% in " + f.LocationLabel
 }
 
 // ForecastFromResult rebuilds a Forecast from a plugin Handle("forecast") result.
 func ForecastFromResult(res tool.Result, validFor time.Time) (Forecast, error) {
+	if !res.Success {
+		return Forecast{}, tool.InvalidPayload("forecast plugin reported failure")
+	}
 	if res.Data == nil {
 		return Forecast{}, tool.InvalidPayload("forecast result has no data")
 	}
 	cond, ok := ParseCondition(res.Data["condition"])
-	if !ok {
+	if !ok || cond == Unavailable {
 		return Forecast{}, tool.InvalidPayload("forecast result has invalid condition")
 	}
-	temp := 0.0
-	if raw := res.Data["temperatureC"]; raw != "" {
-		if v, err := strconv.ParseFloat(raw, 64); err == nil {
-			temp = v
+	rawTemp := res.Data["temperatureC"]
+	if rawTemp == "" {
+		return Forecast{}, tool.InvalidPayload("forecast result is missing temperatureC")
+	}
+	temp, err := strconv.ParseFloat(rawTemp, 64)
+	if err != nil {
+		return Forecast{}, tool.InvalidPayload("forecast result has invalid temperatureC")
+	}
+	precip := 0
+	if raw := res.Data["precipPct"]; raw != "" {
+		n, err := strconv.Atoi(raw)
+		if err != nil {
+			return Forecast{}, tool.InvalidPayload("forecast result has invalid precipPct")
 		}
+		precip = n
 	}
 	loc := res.Data["location"]
 	if loc == "" {
@@ -107,10 +145,12 @@ func ForecastFromResult(res tool.Result, validFor time.Time) (Forecast, error) {
 	return Forecast{
 		Condition:     cond,
 		TemperatureC:  temp,
+		PrecipPct:     precip,
 		LocationLabel: loc,
 		ValidFor:      validFor,
 		IsMock:        res.Data["isMock"] == "true",
 		SourceLabel:   src,
+		Available:     true,
 	}, nil
 }
 
@@ -151,13 +191,25 @@ func (t *Tool) Scenario() Condition {
 func (t *Tool) Forecast(forTime time.Time) Forecast {
 	t.mu.Lock()
 	defer t.mu.Unlock()
+	if t.scenario == Unavailable {
+		return Forecast{
+			Condition:     Unavailable,
+			LocationLabel: t.locationLabel,
+			ValidFor:      forTime,
+			IsMock:        true,
+			SourceLabel:   SourceLabel,
+			Available:     false,
+		}
+	}
 	return Forecast{
 		Condition:     t.scenario,
 		TemperatureC:  t.scenario.TemperatureC(),
+		PrecipPct:     t.scenario.PrecipPct(),
 		LocationLabel: t.locationLabel,
 		ValidFor:      forTime,
 		IsMock:        true,
 		SourceLabel:   SourceLabel,
+		Available:     true,
 	}
 }
 
@@ -172,6 +224,12 @@ func (t *Tool) Handle(req tool.Request) (tool.Result, error) {
 			}
 			when = parsed
 		}
+		if t.Scenario() == Unavailable {
+			return tool.Result{
+				Success: false,
+				Summary: SourceLabel + ": query failed",
+			}, nil
+		}
 		f := t.Forecast(when)
 		return tool.Result{
 			Success: true,
@@ -179,6 +237,7 @@ func (t *Tool) Handle(req tool.Request) (tool.Result, error) {
 			Data: map[string]string{
 				"condition":    string(f.Condition),
 				"temperatureC": strconv.Itoa(int(f.TemperatureC)),
+				"precipPct":    strconv.Itoa(f.PrecipPct),
 				"isMock":       "true",
 				"sourceLabel":  f.SourceLabel,
 				"location":     f.LocationLabel,
@@ -191,7 +250,7 @@ func (t *Tool) Handle(req tool.Request) (tool.Result, error) {
 		}
 		next, ok := ParseCondition(raw)
 		if !ok {
-			return tool.Result{}, tool.InvalidPayload("condition must be rain, clear, or cloudy")
+			return tool.Result{}, tool.InvalidPayload("condition must be rain, clear, cloudy, or unavailable")
 		}
 		t.SetScenario(next)
 		return tool.Result{Success: true, Summary: "Mock scenario set to " + next.DisplayName()}, nil

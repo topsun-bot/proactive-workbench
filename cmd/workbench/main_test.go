@@ -27,6 +27,9 @@ func TestDemoRainShowsMockAndCreatesReminders(t *testing.T) {
 		"calendar:",
 		"alarm:",
 		"2026-10-10 08:00",
+		"今天可能下雨",
+		"降水概率 80%",
+		"记得带伞",
 	} {
 		if !strings.Contains(text, want) {
 			t.Fatalf("output missing %q\n%s", want, text)
@@ -34,7 +37,7 @@ func TestDemoRainShowsMockAndCreatesReminders(t *testing.T) {
 	}
 }
 
-func TestDemoClearSkipsReminders(t *testing.T) {
+func TestDemoClearStillCreatesReminders(t *testing.T) {
 	var out bytes.Buffer
 	err := run([]string{
 		"demo",
@@ -45,11 +48,50 @@ func TestDemoClearSkipsReminders(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !strings.Contains(out.String(), "Reminders skipped") {
-		t.Fatalf("expected skip path\n%s", out.String())
+	text := out.String()
+	for _, want := range []string{
+		"Reminders created",
+		"Outcome:  no_rain",
+		"今天降水概率 5%",
+		"带不带你定",
+		"MOCK weather (not live data)",
+		"2026-10-10 08:00",
+	} {
+		if !strings.Contains(text, want) {
+			t.Fatalf("output missing %q\n%s", want, text)
+		}
 	}
-	if strings.Contains(out.String(), "Reminders created") {
-		t.Fatal("clear should not create reminders")
+	if strings.Contains(text, "Reminders skipped") {
+		t.Fatal("PRD: clear weather must not skip reminders")
+	}
+}
+
+func TestDemoUnavailableStillCreatesReminders(t *testing.T) {
+	var out bytes.Buffer
+	err := run([]string{
+		"demo",
+		"--weather=unavailable",
+		"--tz=Asia/Shanghai",
+		"--now=2026-10-09T13:00:00+08:00",
+	}, &out, &out)
+	if err != nil {
+		t.Fatal(err)
+	}
+	text := out.String()
+	for _, want := range []string{
+		"Reminders created",
+		"Outcome:  weather_unavailable",
+		"记得带伞（天气暂时查不到）。",
+	} {
+		if !strings.Contains(text, want) {
+			t.Fatalf("output missing %q\n%s", want, text)
+		}
+	}
+	if strings.Contains(text, "降水概率") && strings.Contains(text, "天气暂时查不到") {
+		// fallback message must not invent a probability
+		if strings.Contains(text, "今天降水概率") {
+			t.Fatalf("unavailable path fabricated precip\n%s", text)
+		}
 	}
 }
 
@@ -95,6 +137,19 @@ func TestPlanHelpIsSuccess(t *testing.T) {
 	}
 	if !strings.Contains(out.String(), "Usage:") {
 		t.Fatalf("expected usage text\n%s", out.String())
+	}
+}
+
+func TestPlanRejectsEightPM(t *testing.T) {
+	var out bytes.Buffer
+	err := run([]string{
+		"plan", "bring an umbrella tomorrow at eight pm",
+		"--weather=rain",
+		"--now=2026-10-09T13:00:00+08:00",
+		"--tz=Asia/Shanghai",
+	}, &out, &out)
+	if err == nil {
+		t.Fatalf("expected unrecognized goal, got\n%s", out.String())
 	}
 }
 

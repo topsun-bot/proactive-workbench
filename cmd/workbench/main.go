@@ -57,7 +57,7 @@ func printUsage(w io.Writer) {
 	fmt.Fprint(w, `Proactive Workbench — Linux CLI skeleton
 
 Usage:
-  workbench demo [--weather=rain|clear|cloudy] [--now=RFC3339] [--tz=IANA]
+  workbench demo [--weather=rain|clear|cloudy|unavailable] [--now=RFC3339] [--tz=IANA]
   workbench plan "<goal>" [--weather=...] [--now=...] [--tz=...]
   workbench tools
   workbench version
@@ -66,8 +66,9 @@ The built-in cross-tool demo is:
   明天早上八点提醒带伞
   bring an umbrella tomorrow 8am
 
-Weather in this build is MOCK (not live data). Rain creates an in-memory
-calendar event and alarm; clear/cloudy skips both.
+Weather in this build is MOCK (not live data). Per docs/PRD.md the
+reminder is always created: rain, clear/cloudy, and weather-unavailable
+use different copy. --weather=unavailable simulates a failed query.
 `)
 }
 
@@ -126,13 +127,13 @@ func parseRunFlags(args []string, helpOut io.Writer) (runOpts, error) {
 	fs.SetOutput(helpOut)
 	fs.Usage = func() {
 		fmt.Fprint(helpOut, `Usage:
-  workbench demo [--weather=rain|clear|cloudy] [--now=RFC3339] [--tz=IANA]
+  workbench demo [--weather=rain|clear|cloudy|unavailable] [--now=RFC3339] [--tz=IANA]
   workbench plan "<goal>" [--weather=...] [--now=...] [--tz=...]
 
 `)
 		fs.PrintDefaults()
 	}
-	weatherFlag := fs.String("weather", "rain", "mock weather scenario: rain, clear, cloudy")
+	weatherFlag := fs.String("weather", "rain", "mock weather scenario: rain, clear, cloudy, unavailable")
 	nowFlag := fs.String("now", "", "override current time (RFC3339); default is real now")
 	tzFlag := fs.String("tz", "Asia/Shanghai", "IANA timezone for “tomorrow 8am”")
 	if err := fs.Parse(args); err != nil {
@@ -140,7 +141,7 @@ func parseRunFlags(args []string, helpOut io.Writer) (runOpts, error) {
 	}
 	cond, ok := weather.ParseCondition(*weatherFlag)
 	if !ok {
-		return opts, fmt.Errorf("invalid --weather %q (use rain, clear, or cloudy)", *weatherFlag)
+		return opts, fmt.Errorf("invalid --weather %q (use rain, clear, cloudy, or unavailable)", *weatherFlag)
 	}
 	opts.weather = cond
 	loc, err := time.LoadLocation(*tzFlag)
@@ -205,6 +206,11 @@ func printPlan(w io.Writer, plan umbrella.Plan) {
 	fmt.Fprintf(w, "When:     %s\n", plan.ReminderAt.Format("2006-01-02 15:04 MST"))
 	fmt.Fprintf(w, "Forecast: %s\n", plan.Weather.Summary())
 	fmt.Fprintf(w, "isMock:   %v\n", plan.Weather.IsMock)
+	if plan.Weather.Available {
+		fmt.Fprintf(w, "Precip:   %d%% (threshold %d%%)\n", plan.Weather.PrecipPct, plan.RainThresholdPct)
+	}
+	fmt.Fprintf(w, "Outcome:  %s\n", plan.Outcome)
+	fmt.Fprintf(w, "Message:  %s\n", plan.ReminderMessage)
 	fmt.Fprintln(w)
 	fmt.Fprintln(w, "Steps")
 	fmt.Fprintln(w, "-----")
@@ -220,6 +226,7 @@ func printPlan(w io.Writer, plan umbrella.Plan) {
 		fmt.Fprintln(w, "Reminders created (in-memory stubs)")
 		fmt.Fprintf(w, "  calendar: %s id=%s\n", plan.CalendarEvent.Title, plan.CalendarEvent.ID)
 		fmt.Fprintf(w, "  alarm:    %s id=%s\n", plan.Alarm.Label, plan.Alarm.ID)
+		fmt.Fprintf(w, "  message:  %s\n", plan.ReminderMessage)
 	} else {
 		fmt.Fprintln(w, "Reminders skipped")
 		fmt.Fprintf(w, "  %s\n", plan.SkippedReason)

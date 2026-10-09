@@ -68,6 +68,12 @@ func TestRainCreatesCalendarAndAlarm(t *testing.T) {
 	if !plan.CreatedReminders() {
 		t.Fatal("expected calendar + alarm")
 	}
+	if plan.Outcome != umbrella.OutcomeRain {
+		t.Fatalf("outcome %s", plan.Outcome)
+	}
+	if !strings.Contains(plan.ReminderMessage, "记得带伞") || !strings.Contains(plan.ReminderMessage, "80%") {
+		t.Fatalf("message: %s", plan.ReminderMessage)
+	}
 	if plan.SkippedReason != "" {
 		t.Fatalf("unexpected skip: %s", plan.SkippedReason)
 	}
@@ -93,7 +99,7 @@ func TestRainCreatesCalendarAndAlarm(t *testing.T) {
 	}
 }
 
-func TestClearSkipsCalendarAndAlarm(t *testing.T) {
+func TestClearStillCreatesReminders(t *testing.T) {
 	clk, _ := shanghaiFriday()
 	reg, cal, al := session(weather.Clear)
 
@@ -104,29 +110,53 @@ func TestClearSkipsCalendarAndAlarm(t *testing.T) {
 	if !plan.Weather.IsMock || plan.Weather.Condition != weather.Clear {
 		t.Fatalf("unexpected forecast %#v", plan.Weather)
 	}
-	if plan.CreatedReminders() {
-		t.Fatal("clear weather must not create reminders")
+	if !plan.CreatedReminders() {
+		t.Fatal("PRD: clear weather must still create reminders")
 	}
-	if plan.SkippedReason == "" {
-		t.Fatal("expected skip reason")
+	if plan.Outcome != umbrella.OutcomeNoRain {
+		t.Fatalf("outcome %s", plan.Outcome)
 	}
-	if len(cal.Events()) != 0 || len(al.Alarms()) != 0 {
-		t.Fatal("stubs should stay empty")
+	if !strings.Contains(plan.ReminderMessage, "带不带你定") {
+		t.Fatalf("message: %s", plan.ReminderMessage)
 	}
-	if len(plan.Steps) != 3 || plan.Steps[1].Status != umbrella.StepSkipped || plan.Steps[2].Status != umbrella.StepSkipped {
-		t.Fatalf("steps: %+v", plan.Steps)
+	if len(cal.Events()) != 1 || len(al.Alarms()) != 1 {
+		t.Fatal("stubs should hold the reminder")
 	}
 }
 
-func TestCloudyAlsoSkips(t *testing.T) {
+func TestCloudyStillCreatesReminders(t *testing.T) {
 	clk, _ := shanghaiFriday()
 	reg, _, _ := session(weather.Cloudy)
 	plan, err := umbrella.Execute(reg, clk)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if plan.CreatedReminders() {
-		t.Fatal("cloudy should skip")
+	if !plan.CreatedReminders() || plan.Outcome != umbrella.OutcomeNoRain {
+		t.Fatalf("cloudy should still remind: %#v", plan)
+	}
+}
+
+func TestUnavailableWeatherStillCreatesReminders(t *testing.T) {
+	clk, _ := shanghaiFriday()
+	reg, cal, al := session(weather.Unavailable)
+	plan, err := umbrella.Execute(reg, clk)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !plan.CreatedReminders() {
+		t.Fatal("PRD: weather failure must still create reminders")
+	}
+	if plan.Outcome != umbrella.OutcomeWeatherUnavailable {
+		t.Fatalf("outcome %s", plan.Outcome)
+	}
+	if plan.ReminderMessage != "记得带伞（天气暂时查不到）。" {
+		t.Fatalf("message: %s", plan.ReminderMessage)
+	}
+	if strings.Contains(plan.ReminderMessage, "%") || strings.Contains(plan.Steps[0].Detail, "0°C") {
+		t.Fatalf("must not fabricate weather numbers: %#v", plan)
+	}
+	if len(cal.Events()) != 1 || len(al.Alarms()) != 1 {
+		t.Fatal("expected persisted reminder")
 	}
 }
 
@@ -186,6 +216,8 @@ func TestIntentRecognizer(t *testing.T) {
 		{"明天早上八点提醒带伞", intent.UmbrellaReminder},
 		{"open calculator", intent.Unknown},
 		{"remind me to bring an umbrella today at 5pm", intent.Unknown},
+		{"bring an umbrella tomorrow at eight pm", intent.Unknown},
+		{"明天十八点提醒带伞", intent.Unknown},
 		{"明天带伞", intent.Unknown},
 		{"带伞", intent.Unknown},
 	}
@@ -276,6 +308,7 @@ func (replacementWeather) Handle(req tool.Request) (tool.Result, error) {
 		Data: map[string]string{
 			"condition":    "rain",
 			"temperatureC": "12",
+			"precipPct":    "80",
 			"isMock":       "true",
 			"sourceLabel":  "replacement weather plugin",
 			"location":     "Lab",
@@ -312,5 +345,103 @@ func TestExecuteRequiresRegisteredTools(t *testing.T) {
 	_, err := umbrella.Execute(tool.NewRegistry(), clk)
 	if err == nil {
 		t.Fatal("expected missing-tool error")
+	}
+}
+
+type unsuccessfulWeather struct {
+	condition string
+}
+
+func (unsuccessfulWeather) Descriptor() tool.Descriptor {
+	return tool.Descriptor{ID: weather.ToolID, DisplayName: "Unsuccessful weather"}
+}
+
+func (u unsuccessfulWeather) Handle(req tool.Request) (tool.Result, error) {
+	if req.Action != "forecast" {
+		return tool.Result{}, tool.Unsupported(req.Action)
+	}
+	return tool.Result{
+		Success: false,
+		Summary: "upstream timeout",
+		Data: map[string]string{
+			"condition":    u.condition,
+			"temperatureC": "16",
+		},
+	}, nil
+}
+
+func TestUnsuccessfulWeatherResultIsNotTreatedAsSuccess(t *testing.T) {
+	clk, _ := shanghaiFriday()
+	reg := tool.NewRegistry()
+	reg.Register(unsuccessfulWeather{condition: "rain"})
+	reg.Register(calendar.New())
+	reg.Register(alarm.New())
+	plan, err := umbrella.Execute(reg, clk)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if plan.Outcome != umbrella.OutcomeWeatherUnavailable {
+		t.Fatalf("Success=false rain payload must not be treated as rain, got %s", plan.Outcome)
+	}
+	if !plan.CreatedReminders() {
+		t.Fatal("PRD: still remind when weather fails")
+	}
+}
+
+type badTempWeather struct{}
+
+func (badTempWeather) Descriptor() tool.Descriptor {
+	return tool.Descriptor{ID: weather.ToolID, DisplayName: "Bad temp"}
+}
+
+func (badTempWeather) Handle(req tool.Request) (tool.Result, error) {
+	return tool.Result{
+		Success: true,
+		Summary: "bad temp",
+		Data: map[string]string{
+			"condition":    "clear",
+			"temperatureC": "warm",
+		},
+	}, nil
+}
+
+func TestMalformedTemperatureIsRejected(t *testing.T) {
+	clk, _ := shanghaiFriday()
+	reg := tool.NewRegistry()
+	reg.Register(badTempWeather{})
+	reg.Register(calendar.New())
+	reg.Register(alarm.New())
+	_, err := umbrella.Execute(reg, clk)
+	if err == nil {
+		t.Fatal("expected invalid temperatureC to fail")
+	}
+}
+
+type failingAlarm struct{}
+
+func (failingAlarm) Descriptor() tool.Descriptor {
+	return tool.Descriptor{ID: alarm.ToolID, DisplayName: "Failing alarm"}
+}
+
+func (failingAlarm) Handle(req tool.Request) (tool.Result, error) {
+	return tool.Result{Success: false, Summary: "alarm backend down"}, nil
+}
+
+func TestAlarmFailureRollsBackCalendar(t *testing.T) {
+	clk, _ := shanghaiFriday()
+	cal := calendar.New()
+	reg := tool.NewRegistry()
+	reg.Register(weather.New(weather.Rain))
+	reg.Register(cal)
+	reg.Register(failingAlarm{})
+	_, err := umbrella.Execute(reg, clk)
+	if err == nil {
+		t.Fatal("expected alarm failure")
+	}
+	if !strings.Contains(err.Error(), "rolled back") {
+		t.Fatalf("error should mention rollback: %v", err)
+	}
+	if len(cal.Events()) != 0 {
+		t.Fatalf("calendar event should be rolled back, still have %d", len(cal.Events()))
 	}
 }

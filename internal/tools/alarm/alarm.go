@@ -99,6 +99,9 @@ func (t *Tool) Handle(req tool.Request) (tool.Result, error) {
 
 // RecordFromResult rebuilds a Record from a plugin Handle("createAlarm") result.
 func RecordFromResult(res tool.Result) (Record, error) {
+	if !res.Success {
+		return Record{}, tool.InvalidPayload("createAlarm plugin reported failure")
+	}
 	if res.Data == nil || res.Data["id"] == "" || res.Data["label"] == "" {
 		return Record{}, tool.InvalidPayload("createAlarm result is incomplete")
 	}

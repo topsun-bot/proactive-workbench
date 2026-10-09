@@ -46,6 +46,18 @@ func (t *Tool) Events() []Event {
 	return out
 }
 
+func (t *Tool) Delete(id string) bool {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	for i, ev := range t.events {
+		if ev.ID == id {
+			t.events = append(t.events[:i], t.events[i+1:]...)
+			return true
+		}
+	}
+	return false
+}
+
 func (t *Tool) Create(title string, start time.Time, notes, flow string) Event {
 	t.mu.Lock()
 	defer t.mu.Unlock()
@@ -88,6 +100,19 @@ func (t *Tool) Handle(req tool.Request) (tool.Result, error) {
 				"createdByFlow": ev.CreatedByFlow,
 			},
 		}, nil
+	case "deleteEvent":
+		id := payload(req, "id")
+		if id == "" {
+			return tool.Result{}, tool.InvalidPayload("id is required")
+		}
+		if !t.Delete(id) {
+			return tool.Result{Success: false, Summary: "calendar event not found"}, nil
+		}
+		return tool.Result{
+			Success: true,
+			Summary: "Deleted calendar event " + id,
+			Data:    map[string]string{"id": id},
+		}, nil
 	case "listEvents":
 		events := t.Events()
 		return tool.Result{
@@ -102,6 +127,9 @@ func (t *Tool) Handle(req tool.Request) (tool.Result, error) {
 
 // EventFromResult rebuilds an Event from a plugin Handle("createEvent") result.
 func EventFromResult(res tool.Result) (Event, error) {
+	if !res.Success {
+		return Event{}, tool.InvalidPayload("createEvent plugin reported failure")
+	}
 	if res.Data == nil || res.Data["id"] == "" || res.Data["title"] == "" {
 		return Event{}, tool.InvalidPayload("createEvent result is incomplete")
 	}
