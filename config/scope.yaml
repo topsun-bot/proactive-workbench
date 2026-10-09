@@ -1,0 +1,59 @@
+# proactive-workbench 首版范围（机器可读）。与 docs/PRD.md 同步；草案，待张益新拍板。
+version: "0.1.0-draft"
+updated: "2026-10-09"
+status: draft
+platform: linux
+platform_note: "2026-10-09 起目标平台由 Mac 改为 Linux；Mac 相关（DMG/EventKit/苹果签名）不在 v1"
+tool_catalog_complete: false   # 23 个工具完整清单尚未入库，待补
+
+tools:
+  - id: calendar
+    name_zh: 日历
+    role: "把相对时间（如“明天早上八点”）解析为本地时区的具体时间，并判断是否已过去"
+    v1_reads_user_events: false   # 假设：首版不读写真实日历
+  - id: weather
+    name_zh: 天气
+    role: "查询目标日期和时段的降水概率；失败时明确返回错误，不编造数值"
+    provider: null                # 待 A4/开发确认
+    mock_allowed: true            # 模拟数据必须标注
+  - id: alarm
+    name_zh: 闹钟
+    role: "在指定时间触发桌面提醒，支持查看和取消"
+
+scenarios:
+  - id: umbrella_reminder_8am
+    name_zh: 明天早上八点提醒带伞
+    trigger_examples:
+      - "明天早上八点提醒我带伞"
+    params:
+      target_time_local: "tomorrow 08:00"
+      rain_threshold_pct: 50      # 假设，待定
+    steps:
+      - tool: calendar
+        action: resolve_time
+        on_time_passed: ask_user_confirm_next_occurrence
+      - tool: weather
+        action: get_precip_probability
+        on_failure: continue_with_fallback_message
+      - tool: alarm
+        action: set_reminder
+        message_by_outcome:
+          rain: "今天可能下雨（降水概率 {pct}%），记得带伞。"
+          no_rain: "今天降水概率 {pct}%，可能用不上伞，带不带你定。"
+          weather_unavailable: "记得带伞（天气暂时查不到）。"
+    success_criteria:
+      - "生成次日 08:00（本地时区）的提醒"
+      - "有雨时文案含“带伞”和降水概率"
+      - "无雨时仍设置提醒，并说明降水概率低"
+      - "天气失败时仍设置提醒，并告知失败，不出现编造数值"
+      - "时间已过时先询问，不静默设置"
+      - "模拟数据有标注"
+      - "到点弹出桌面通知，可查看和取消"
+
+out_of_scope:
+  - other_tools_beyond_calendar_weather_alarm
+  - macos_dmg_eventkit_apple_signing
+  - voice_input_output
+  - multi_user_accounts_sync
+  - proactive_core_goal_generation   # TODO 序号 7
+  - read_write_real_user_calendar    # 假设
