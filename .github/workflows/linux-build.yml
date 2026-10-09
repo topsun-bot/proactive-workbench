@@ -134,7 +134,8 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@v5
         with:
-          go-version: "1.22.x"
+          # 1.22 test binaries abort on current macos-latest (dyld missing LC_UUID).
+          go-version: "1.23.x"
 
       - name: Unit tests
         run: go test ./...
