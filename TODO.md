@@ -7,12 +7,14 @@
 >
 > 统一规则：负责人自己开工；开始时把状态改为进行中，完成后改为已完成并写明完成了什么和 commit 链接。
 
+方向已改为 **Linux CLI**（无可用 Mac；不做 DMG / 签名）。实现见 `cursor/linux-workbench-cli-d1a9`。
+
 | # | 任务 | 状态 | 负责人 | 验收标准 |
 |---|---|---|---|---|
 | 1 | 建仓库 topsun-bot/proactive-workbench（已公开） | 已完成 | 主动Agent | 仓库可访问，Public，默认分支 main |
-| 2 | Linux 客户端框架（桌面应用或命令行，形态由 Shaoruru 定；主界面 + 工具插件接口） | 进行中 | Shaoruru | Linux 上可运行主界面；至少 1 个示例工具经插件接口可调用；附本仓库 commit 链接 |
-| 3 | GitHub Actions 改用 ubuntu-latest 构建 Linux 可运行产物（去掉 macOS 构建机与 DMG） | 进行中 | Shaoruru | ubuntu-latest 上 Actions 跑绿，Linux 产物可下载；附运行链接和 commit 链接 |
-| 4 | 「明天早上八点提醒带伞」跨工具演示在 Linux 上跑通（天气先 mock） | 进行中 | Shaoruru | Linux 上触发后生成「明天 08:00 带伞」提醒，附输出/截图和 commit 链接 |
+| 2 | Linux 客户端框架（桌面应用或命令行，形态由 Shaoruru 定；主界面 + 工具插件接口） | 进行中 | Shaoruru | Go CLI `workbench`；插件接口 + calendar/weather/alarm 桩；PR #1 |
+| 3 | GitHub Actions 改用 ubuntu-latest 构建 Linux 可运行产物（去掉 macOS 构建机与 DMG） | 进行中 | Shaoruru | ubuntu-latest 上 Actions 跑绿，tar.gz artifact；workflow `Linux build` |
+| 4 | 「明天早上八点提醒带伞」跨工具演示在 Linux 上跑通（天气先 mock） | 进行中 | Shaoruru | `workbench demo`；雨天建日历+闹钟，晴天跳过；CI 日志打印输出 |
 | 5 | 首版范围：选 3–5 个工具，一页 PRD | 待办 | A3 产品经理 | 一页 PRD，张益新批准 |
 | 6 | 数据源：天气 API、日历/提醒权限 | 待办 | A4 技术互联 | 天气 API 调用示例 + 权限说明 |
 | 7 | 主动性内核设计：感知 → 目标 → 规划 → 何时打扰 | 待办 | A4 技术互联 | 设计文档 + 打扰规则，用「带伞」场景走通 |
