@@ -7,16 +7,20 @@ import (
 	"sync"
 )
 
-// Memory stores the last interrupt fingerprint so an unchanged situation
-// does not re-notify. In-process only; the CLI reuses one Memory across --repeat.
-type Memory struct {
+// Dedupe stores the last interrupt fingerprint so an unchanged situation
+// does not re-notify. In-process only; the CLI reuses one Dedupe across --repeat.
+// Long-term on-disk memory is internal/memory, not this type.
+type Dedupe struct {
 	mu     sync.Mutex
 	lastFP string
 }
 
-func NewMemory() *Memory { return &Memory{} }
+func NewDedupe() *Dedupe { return &Dedupe{} }
 
-func (m *Memory) LastFingerprint() string {
+// NewMemory is a deprecated alias kept so older call sites compile during the rename.
+func NewMemory() *Dedupe { return NewDedupe() }
+
+func (m *Dedupe) LastFingerprint() string {
 	if m == nil {
 		return ""
 	}
@@ -25,7 +29,7 @@ func (m *Memory) LastFingerprint() string {
 	return m.lastFP
 }
 
-func (m *Memory) Remember(fp string) {
+func (m *Dedupe) Remember(fp string) {
 	if m == nil {
 		return
 	}
@@ -52,7 +56,7 @@ func Fingerprint(p Perception, g Goal) string {
 	}, "|")
 }
 
-func Decide(p Perception, g Goal, policy Policy, mem *Memory) Decision {
+func Decide(p Perception, g Goal, policy Policy, mem *Dedupe) Decision {
 	fp := Fingerprint(p, g)
 	d := Decision{Fingerprint: fp, Score: g.Score}
 

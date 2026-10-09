@@ -14,6 +14,7 @@ const (
 	GoalNone             GoalKind = "none"
 	GoalVisitPark        GoalKind = "visit_park"
 	GoalUmbrellaReminder GoalKind = "umbrella_reminder"
+	GoalCommitmentNudge  GoalKind = "commitment_nudge"
 )
 
 type Goal struct {

@@ -71,3 +71,44 @@ func TestHelp(t *testing.T) {
 		t.Fatalf("usage:\n%s", out.String())
 	}
 }
+
+func TestBriefFixture(t *testing.T) {
+	var out bytes.Buffer
+	err := run([]string{
+		"brief",
+		"--weather=clear",
+		"--now=2026-10-10T15:00:00+08:00",
+		"--tz=Asia/Shanghai",
+		"--memory-fixture",
+	}, &out, &out)
+	if err != nil {
+		t.Fatal(err)
+	}
+	text := out.String()
+	if !strings.Contains(text, "FIXTURE") {
+		t.Fatalf("brief must label fixtures\n%s", text)
+	}
+	if !strings.Contains(text, "Morning brief") {
+		t.Fatalf("expected brief header\n%s", text)
+	}
+}
+
+func TestTickJSON(t *testing.T) {
+	var out bytes.Buffer
+	err := run([]string{
+		"tick",
+		"--weather=clear",
+		"--now=2026-10-10T15:00:00+08:00",
+		"--tz=Asia/Shanghai",
+		"--json",
+	}, &out, &out)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(out.String(), `"ok": true`) && !strings.Contains(out.String(), `"ok":true`) {
+		t.Fatalf("json envelope\n%s", out.String())
+	}
+	if !strings.Contains(out.String(), `"goalKind": "visit_park"`) && !strings.Contains(out.String(), `"goalKind":"visit_park"`) {
+		t.Fatalf("goal\n%s", out.String())
+	}
+}

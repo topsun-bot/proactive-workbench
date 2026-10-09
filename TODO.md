@@ -18,7 +18,7 @@
 | 4 | 「明天早上八点提醒带伞」跨工具演示在 Linux 上跑通（天气先 mock） | 进行中 | Shaoruru | `workbench demo`；雨天建日历+闹钟，晴天跳过；CI 日志打印输出 |
 | 5 | 首版范围：选 3–5 个工具，一页 PRD | 待办 | A3 产品经理 | 一页 PRD，张益新批准 |
 | 6 | 数据源：天气 API + Linux 日历/提醒接入（如 CalDAV / ICS 文件 / 本地提醒，不用 EventKit） | 已完成 | A4 技术互联 | Open-Meteo（无 key）+ fixture mock；Linux 日历推荐本地 ICS，CalDAV 为不联网 stub。`internal/datasources/DESIGN.md`。[cf6ef92](https://github.com/topsun-bot/proactive-workbench/commit/cf6ef92cc45688cc0ea73499c115cc90e532bb36) |
-| 7 | 主动性内核设计：持续感知 → 自主生成目标 → 持续规划 → 何时打扰（不等人下指令） | 已完成 | A4 技术互联 | `internal/proactivity` + `cmd/proactivity`；打扰策略含分数、安静时段、fingerprint 去重。本地记忆 / morning brief / 例程见同目录。[cf6ef92](https://github.com/topsun-bot/proactive-workbench/commit/cf6ef92cc45688cc0ea73499c115cc90e532bb36) |
+| 7 | 主动性内核设计：持续感知 → 自主生成目标 → 持续规划 → 何时打扰（不等人下指令） | 已完成 | A4 技术互联 | `internal/proactivity` + `cmd/proactivity`；打扰策略含分数、安静时段、fingerprint 去重；本地记忆 / morning brief / 例程 / 127.0.0.1 JSON API 见 `internal/proactivity/API.md`。[cf6ef92](https://github.com/topsun-bot/proactive-workbench/commit/cf6ef92cc45688cc0ea73499c115cc90e532bb36) |
 | 8 | Apple 开发者证书/公证 是否购买 | 搁置 | 张益新 | 短期无 Mac，搁置（2026-10-09） |
 | 9 | 在 Mac 上安装 DMG 并反馈 | 搁置 | 张益新 | 短期无 Mac，搁置（2026-10-09） |
 | 12 | 工作日巡检：构建、Linux 产物、带伞演示是否退化 | 待办 | PW 日常巡检 QA | 直接在 Linux 上验收，无需 Mac；巡检脚本提交到 tests/（附 commit 链接）；确认开启后每个工作日一份报告 |

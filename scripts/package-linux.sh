@@ -44,9 +44,12 @@ List plugins:
 
   ./workbench tools
 
-One proactivity tick against FIXTURE sources (no network):
+Proactivity against FIXTURE sources (no network):
 
   ./proactivity tick --now=2026-10-10T15:00:00+08:00 --repeat=2
+  ./proactivity brief --memory-fixture --now=2026-10-10T08:00:00+08:00
+  ./proactivity tick --json
+  ./proactivity serve --listen=127.0.0.1:8741 --memory-fixture
 EOF
 
 echo "==> archive"
