@@ -1,0 +1,41 @@
+:root {
+  --bg: #f4efe6;
+  --ink: #1c1915;
+  --muted: #6b6258;
+  --card: #fffaf3;
+  --accent: #c45c26;
+  --line: #e4d8c8;
+  --ok: #2f6f4e;
+}
+
+* { box-sizing: border-box; }
+html, body { margin: 0; background: var(--bg); color: var(--ink); font: 16px/1.45 "Iowan Old Style", "Palatino Linotype", Palatino, serif; }
+.shell { max-width: 980px; margin: 0 auto; padding: 32px 28px 64px; }
+.top { display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; }
+.eyebrow { margin: 0; letter-spacing: 0.12em; text-transform: uppercase; font-size: 11px; color: var(--muted); font-family: "Avenir Next", system-ui, sans-serif; }
+h1 { margin: 6px 0 0; font-size: 42px; font-weight: 600; }
+.date { margin: 4px 0 0; color: var(--muted); }
+.pill { font-family: "Avenir Next", system-ui, sans-serif; font-size: 12px; border: 1px solid var(--accent); color: var(--accent); border-radius: 999px; padding: 6px 12px; }
+h2 { font-size: 15px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); font-family: "Avenir Next", system-ui, sans-serif; margin: 28px 0 12px; }
+.card, .task, .signal, .suggestion { background: var(--card); border: 1px solid var(--line); border-radius: 16px; }
+.briefing { padding: 20px 22px; font-size: 18px; }
+.tasks { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px; }
+.task { padding: 16px; min-height: 110px; }
+.task time { display: block; color: var(--accent); font-family: "Avenir Next", system-ui, sans-serif; font-size: 13px; }
+.task h3 { margin: 8px 0 4px; font-size: 20px; }
+.task .kind { color: var(--muted); font-size: 13px; }
+.split { display: grid; grid-template-columns: 1.2fr 0.8fr; gap: 20px; }
+.signals { display: grid; gap: 10px; }
+.signal { padding: 12px 14px; display: flex; justify-content: space-between; gap: 12px; }
+.signal b { font-weight: 600; }
+.routines { list-style: none; margin: 0; padding: 0; }
+.routines li { padding: 10px 0; border-bottom: 1px solid var(--line); display: flex; justify-content: space-between; }
+.suggestions { display: grid; gap: 12px; }
+.suggestion { padding: 18px 20px; border-color: var(--accent); }
+.suggestion h3 { margin: 0 0 6px; }
+.suggestion p { margin: 0; }
+.mock { color: var(--ok); font-family: "Avenir Next", system-ui, sans-serif; font-size: 11px; letter-spacing: 0.08em; }
+@media (max-width: 720px) {
+  .split { grid-template-columns: 1fr; }
+  h1 { font-size: 32px; }
+}

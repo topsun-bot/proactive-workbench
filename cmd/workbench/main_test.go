@@ -111,6 +111,32 @@ func TestPlanEnglishPhrase(t *testing.T) {
 	}
 }
 
+func TestTodayBriefing(t *testing.T) {
+	var out bytes.Buffer
+	err := run([]string{
+		"today",
+		"--weather=clear",
+		"--tz=Asia/Shanghai",
+		"--now=2026-10-10T07:15:00+08:00",
+	}, &out, &out)
+	if err != nil {
+		t.Fatal(err)
+	}
+	text := out.String()
+	for _, want := range []string{
+		"Good morning",
+		"MOCK",
+		"slept little last night",
+		"10am meeting",
+		"Morning walk",
+		"Team standup",
+	} {
+		if !strings.Contains(text, want) {
+			t.Fatalf("missing %q\n%s", want, text)
+		}
+	}
+}
+
 func TestUnknownCommand(t *testing.T) {
 	if err := run([]string{"explode"}, &bytes.Buffer{}, &bytes.Buffer{}); err == nil {
 		t.Fatal("expected error")
