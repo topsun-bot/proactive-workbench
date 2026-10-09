@@ -1,0 +1,77 @@
+name: Linux build
+
+on:
+  push:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: linux-build-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: Test, demo, package tar.gz
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: "1.22.x"
+
+      - name: Unit tests
+        run: go test ./...
+
+      - name: Run umbrella demo (rain → calendar + alarm)
+        run: |
+          set -euo pipefail
+          go run ./cmd/workbench demo \
+            --weather=rain \
+            --tz=Asia/Shanghai \
+            --now=2026-10-09T13:00:00+08:00
+
+      - name: Run umbrella demo (clear → skip reminders)
+        run: |
+          set -euo pipefail
+          go run ./cmd/workbench demo \
+            --weather=clear \
+            --tz=Asia/Shanghai \
+            --now=2026-10-09T13:00:00+08:00
+
+      - name: Package Linux tar.gz
+        run: ./scripts/package-linux.sh
+
+      - name: Assert artifact
+        run: |
+          set -euo pipefail
+          ART="dist/proactive-workbench-0.1.0-linux-amd64.tar.gz"
+          test -f "$ART"
+          ls -lh "$ART"
+          SIZE="$(stat -c %s "$ART")"
+          echo "artifact_bytes=$SIZE"
+          if [ "$SIZE" -lt 10000 ]; then
+            echo "error: artifact is unexpectedly small (${SIZE} bytes)" >&2
+            exit 1
+          fi
+          # Prove the packed binary runs.
+          tar -tzf "$ART"
+          tmp="$(mktemp -d)"
+          tar -xzf "$ART" -C "$tmp"
+          "$tmp"/proactive-workbench-0.1.0-linux-amd64/workbench version
+          "$tmp"/proactive-workbench-0.1.0-linux-amd64/workbench tools
+
+      - name: Upload Linux artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: proactive-workbench-0.1.0-linux-amd64.tar.gz
+          path: |
+            dist/proactive-workbench-0.1.0-linux-amd64.tar.gz
+            dist/proactive-workbench-0.1.0-linux-amd64.tar.gz.sha256
+          if-no-files-found: error
+          retention-days: 30
