@@ -72,17 +72,20 @@ func (t *Tool) Handle(req tool.Request) (tool.Result, error) {
 		if err != nil {
 			return tool.Result{}, tool.InvalidPayload("start must be RFC3339")
 		}
-		ev := t.Create(title, start, payload(req, "notes"), payload(req, "createdByFlow"))
-		if ev.CreatedByFlow == "" {
-			ev.CreatedByFlow = "plugin"
+		flow := payload(req, "createdByFlow")
+		if flow == "" {
+			flow = "plugin"
 		}
+		ev := t.Create(title, start, payload(req, "notes"), flow)
 		return tool.Result{
 			Success: true,
 			Summary: "Created calendar event “" + ev.Title + "”",
 			Data: map[string]string{
-				"id":    ev.ID,
-				"title": ev.Title,
-				"start": ev.Start.Format(time.RFC3339),
+				"id":            ev.ID,
+				"title":         ev.Title,
+				"start":         ev.Start.Format(time.RFC3339),
+				"notes":         ev.Notes,
+				"createdByFlow": ev.CreatedByFlow,
 			},
 		}, nil
 	case "listEvents":
@@ -95,6 +98,24 @@ func (t *Tool) Handle(req tool.Request) (tool.Result, error) {
 	default:
 		return tool.Result{}, tool.Unsupported(req.Action)
 	}
+}
+
+// EventFromResult rebuilds an Event from a plugin Handle("createEvent") result.
+func EventFromResult(res tool.Result) (Event, error) {
+	if res.Data == nil || res.Data["id"] == "" || res.Data["title"] == "" {
+		return Event{}, tool.InvalidPayload("createEvent result is incomplete")
+	}
+	start, err := time.Parse(time.RFC3339, res.Data["start"])
+	if err != nil {
+		return Event{}, tool.InvalidPayload("createEvent result start must be RFC3339")
+	}
+	return Event{
+		ID:            res.Data["id"],
+		Title:         res.Data["title"],
+		Start:         start,
+		Notes:         res.Data["notes"],
+		CreatedByFlow: res.Data["createdByFlow"],
+	}, nil
 }
 
 func payload(req tool.Request, key string) string {

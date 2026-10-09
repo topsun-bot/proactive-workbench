@@ -65,6 +65,9 @@ jobs:
           tar -xzf "$ART" -C "$tmp"
           "$tmp"/proactive-workbench-0.1.0-linux-amd64/workbench version
           "$tmp"/proactive-workbench-0.1.0-linux-amd64/workbench tools
+          # Checksum must name the tarball, not an absolute runner path.
+          grep -qv '/' dist/proactive-workbench-0.1.0-linux-amd64.tar.gz.sha256
+          (cd dist && sha256sum -c proactive-workbench-0.1.0-linux-amd64.tar.gz.sha256)
 
       - name: Upload Linux artifact
         uses: actions/upload-artifact@v4

@@ -73,8 +73,45 @@ type Forecast struct {
 }
 
 func (f Forecast) Summary() string {
-	return SourceLabel + ": " + f.Condition.DisplayName() +
+	src := f.SourceLabel
+	if src == "" {
+		src = SourceLabel
+	}
+	return src + ": " + f.Condition.DisplayName() +
 		", " + strconv.Itoa(int(f.TemperatureC)) + "°C in " + f.LocationLabel
+}
+
+// ForecastFromResult rebuilds a Forecast from a plugin Handle("forecast") result.
+func ForecastFromResult(res tool.Result, validFor time.Time) (Forecast, error) {
+	if res.Data == nil {
+		return Forecast{}, tool.InvalidPayload("forecast result has no data")
+	}
+	cond, ok := ParseCondition(res.Data["condition"])
+	if !ok {
+		return Forecast{}, tool.InvalidPayload("forecast result has invalid condition")
+	}
+	temp := 0.0
+	if raw := res.Data["temperatureC"]; raw != "" {
+		if v, err := strconv.ParseFloat(raw, 64); err == nil {
+			temp = v
+		}
+	}
+	loc := res.Data["location"]
+	if loc == "" {
+		loc = "Local"
+	}
+	src := res.Data["sourceLabel"]
+	if src == "" {
+		src = SourceLabel
+	}
+	return Forecast{
+		Condition:     cond,
+		TemperatureC:  temp,
+		LocationLabel: loc,
+		ValidFor:      validFor,
+		IsMock:        res.Data["isMock"] == "true",
+		SourceLabel:   src,
+	}, nil
 }
 
 // Tool is an in-memory mock weather plugin.

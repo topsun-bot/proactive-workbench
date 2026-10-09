@@ -1,11 +1,14 @@
 package main
 
 import (
+	"errors"
 	"flag"
 	"fmt"
 	"io"
 	"os"
 	"time"
+
+	_ "time/tzdata"
 
 	"github.com/topsun-bot/proactive-workbench/internal/clock"
 	"github.com/topsun-bot/proactive-workbench/internal/flow/umbrella"
@@ -79,7 +82,10 @@ func cmdTools(w io.Writer) error {
 }
 
 func cmdDemo(args []string, w io.Writer) error {
-	opts, err := parseRunFlags(args)
+	opts, err := parseRunFlags(args, w)
+	if errors.Is(err, flag.ErrHelp) {
+		return nil
+	}
 	if err != nil {
 		return err
 	}
@@ -90,8 +96,18 @@ func cmdPlan(args []string, w io.Writer) error {
 	if len(args) == 0 {
 		return fmt.Errorf("plan requires a goal string")
 	}
+	if args[0] == "-h" || args[0] == "--help" {
+		_, err := parseRunFlags([]string{"-h"}, w)
+		if errors.Is(err, flag.ErrHelp) {
+			return nil
+		}
+		return err
+	}
 	goal := args[0]
-	opts, err := parseRunFlags(args[1:])
+	opts, err := parseRunFlags(args[1:], w)
+	if errors.Is(err, flag.ErrHelp) {
+		return nil
+	}
 	if err != nil {
 		return err
 	}
@@ -104,10 +120,18 @@ type runOpts struct {
 	tz      *time.Location
 }
 
-func parseRunFlags(args []string) (runOpts, error) {
+func parseRunFlags(args []string, helpOut io.Writer) (runOpts, error) {
 	opts := runOpts{weather: weather.Rain, tz: time.UTC}
 	fs := flag.NewFlagSet("run", flag.ContinueOnError)
-	fs.SetOutput(io.Discard)
+	fs.SetOutput(helpOut)
+	fs.Usage = func() {
+		fmt.Fprint(helpOut, `Usage:
+  workbench demo [--weather=rain|clear|cloudy] [--now=RFC3339] [--tz=IANA]
+  workbench plan "<goal>" [--weather=...] [--now=...] [--tz=...]
+
+`)
+		fs.PrintDefaults()
+	}
 	weatherFlag := fs.String("weather", "rain", "mock weather scenario: rain, clear, cloudy")
 	nowFlag := fs.String("now", "", "override current time (RFC3339); default is real now")
 	tzFlag := fs.String("tz", "Asia/Shanghai", "IANA timezone for “tomorrow 8am”")
@@ -146,7 +170,7 @@ func newSession(scenario weather.Condition) (*tool.Registry, *weather.Tool, *cal
 }
 
 func executeGoal(goal string, opts runOpts, w io.Writer) error {
-	_, weatherTool, cal, al := newSession(opts.weather)
+	reg, _, _, _ := newSession(opts.weather)
 	var clk clock.Clock
 	if !opts.now.IsZero() {
 		clk = clock.Fixed(opts.now, opts.tz)
@@ -166,7 +190,7 @@ func executeGoal(goal string, opts runOpts, w io.Writer) error {
 	}
 	fmt.Fprintln(w)
 
-	plan, err := planner.Plan(goal, weatherTool, cal, al, clk)
+	plan, err := planner.Plan(goal, reg, clk)
 	if err != nil {
 		return err
 	}

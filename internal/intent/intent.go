@@ -19,13 +19,24 @@ type Intent struct {
 }
 
 // Recognize maps a free-text goal onto a known collaboration flow.
+// Only the documented tomorrow-8am umbrella phrases match; other times
+// (e.g. "today at 5pm") are unrecognized rather than silently rewritten.
 func Recognize(text string) Intent {
 	folded := fold(text)
 	mentionsUmbrella := strings.Contains(folded, "umbrella") ||
 		strings.Contains(folded, "带伞") ||
 		strings.Contains(folded, "带把伞") ||
 		(strings.Contains(folded, "伞") && (strings.Contains(folded, "提醒") || strings.Contains(folded, "remind")))
-	if !mentionsUmbrella {
+	mentionsTomorrow := strings.Contains(folded, "tomorrow") ||
+		strings.Contains(folded, "明天") ||
+		strings.Contains(folded, "明早")
+	mentionsEight := strings.Contains(folded, "8am") ||
+		strings.Contains(folded, "08:00") ||
+		strings.Contains(folded, "8:00") ||
+		strings.Contains(folded, "八点") ||
+		strings.Contains(folded, "8点") ||
+		strings.Contains(folded, "eight")
+	if !mentionsUmbrella || !mentionsTomorrow || !mentionsEight {
 		return Intent{Kind: Unknown}
 	}
 	return Intent{Kind: UmbrellaReminder, Hour: 8, Minute: 0}

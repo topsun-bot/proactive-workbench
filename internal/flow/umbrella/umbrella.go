@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/topsun-bot/proactive-workbench/internal/clock"
+	"github.com/topsun-bot/proactive-workbench/internal/tool"
 	"github.com/topsun-bot/proactive-workbench/internal/tools/alarm"
 	"github.com/topsun-bot/proactive-workbench/internal/tools/calendar"
 	"github.com/topsun-bot/proactive-workbench/internal/tools/weather"
@@ -46,13 +47,38 @@ func (p Plan) CreatedReminders() bool {
 	return p.CalendarEvent != nil && p.Alarm != nil
 }
 
-// Execute: check mock weather; if rain, create calendar event and alarm.
-func Execute(w *weather.Tool, cal *calendar.Tool, al *alarm.Tool, clk clock.Clock) (Plan, error) {
+// Execute talks to weather, calendar, and alarm only through the plugin
+// registry. A replacement registered under the same tool ID is used as-is.
+func Execute(reg *tool.Registry, clk clock.Clock) (Plan, error) {
+	w, err := requireTool(reg, weather.ToolID)
+	if err != nil {
+		return Plan{}, err
+	}
+	cal, err := requireTool(reg, calendar.ToolID)
+	if err != nil {
+		return Plan{}, err
+	}
+	al, err := requireTool(reg, alarm.ToolID)
+	if err != nil {
+		return Plan{}, err
+	}
+
 	when, err := clk.NextMorning(ReminderHour, ReminderMinute)
 	if err != nil {
 		return Plan{}, err
 	}
-	forecast := w.Forecast(when)
+
+	forecastRes, err := w.Handle(tool.Request{
+		Action:  "forecast",
+		Payload: map[string]string{"date": when.Format(time.RFC3339)},
+	})
+	if err != nil {
+		return Plan{}, fmt.Errorf("weather forecast: %w", err)
+	}
+	forecast, err := weather.ForecastFromResult(forecastRes, when)
+	if err != nil {
+		return Plan{}, err
+	}
 
 	plan := Plan{
 		IntentID:   IntentID,
@@ -61,13 +87,13 @@ func Execute(w *weather.Tool, cal *calendar.Tool, al *alarm.Tool, clk clock.Cloc
 		Steps: []Step{{
 			ToolID: weather.ToolID,
 			Title:  "Check weather",
-			Detail: forecast.Summary(),
+			Detail: forecastRes.Summary,
 			Status: StepDone,
 		}},
 	}
 
 	if !forecast.Condition.NeedsUmbrella() {
-		reason := "No rain in the mock forecast — calendar event and alarm were not created."
+		reason := "No rain in the weather forecast — calendar event and alarm were not created."
 		plan.SkippedReason = reason
 		plan.Steps = append(plan.Steps,
 			Step{ToolID: calendar.ToolID, Title: "Create calendar event", Detail: "Skipped. " + reason, Status: StepSkipped},
@@ -77,12 +103,46 @@ func Execute(w *weather.Tool, cal *calendar.Tool, al *alarm.Tool, clk clock.Cloc
 	}
 
 	notes := fmt.Sprintf(
-		"Pack an umbrella. Forecast is mock data (%s, %d°C).",
+		"Pack an umbrella. Forecast is %s (%s, %d°C).",
+		forecast.SourceLabel,
 		forecast.Condition.DisplayName(),
 		int(forecast.TemperatureC),
 	)
-	ev := cal.Create(EventTitle, when, notes, IntentID)
-	rec := al.Create(EventTitle, when, IntentID)
+	whenISO := when.Format(time.RFC3339)
+
+	calRes, err := cal.Handle(tool.Request{
+		Action: "createEvent",
+		Payload: map[string]string{
+			"title":         EventTitle,
+			"start":         whenISO,
+			"notes":         notes,
+			"createdByFlow": IntentID,
+		},
+	})
+	if err != nil {
+		return Plan{}, fmt.Errorf("create calendar event: %w", err)
+	}
+	ev, err := calendar.EventFromResult(calRes)
+	if err != nil {
+		return Plan{}, err
+	}
+
+	alarmRes, err := al.Handle(tool.Request{
+		Action: "createAlarm",
+		Payload: map[string]string{
+			"label":         EventTitle,
+			"fireDate":      whenISO,
+			"createdByFlow": IntentID,
+		},
+	})
+	if err != nil {
+		return Plan{}, fmt.Errorf("create alarm: %w", err)
+	}
+	rec, err := alarm.RecordFromResult(alarmRes)
+	if err != nil {
+		return Plan{}, err
+	}
+
 	plan.CalendarEvent = &ev
 	plan.Alarm = &rec
 	plan.Steps = append(plan.Steps,
@@ -100,4 +160,12 @@ func Execute(w *weather.Tool, cal *calendar.Tool, al *alarm.Tool, clk clock.Cloc
 		},
 	)
 	return plan, nil
+}
+
+func requireTool(reg *tool.Registry, id string) (tool.Tool, error) {
+	t, ok := reg.Get(id)
+	if !ok {
+		return nil, fmt.Errorf("required tool %q is not registered", id)
+	}
+	return t, nil
 }
