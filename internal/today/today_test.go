@@ -36,6 +36,24 @@ func TestBuildSuggestsMovingWalk(t *testing.T) {
 	}
 }
 
+func TestBuildWithoutWeatherFixtureDoesNotInventClear(t *testing.T) {
+	loc, err := time.LoadLocation("Asia/Shanghai")
+	if err != nil {
+		t.Fatal(err)
+	}
+	now := time.Date(2026, 10, 11, 9, 0, 0, 0, loc)
+	snap := Build(Input{Now: now}, memory.Fixture())
+	if snap.WeatherMock {
+		t.Fatal("no weather fixture should not be labeled MOCK weather")
+	}
+	if strings.Contains(snap.WeatherLine, "Clear") || strings.Contains(snap.WeatherLine, "22°C") {
+		t.Fatalf("invented clear forecast: %q", snap.WeatherLine)
+	}
+	if !strings.Contains(snap.Briefing, "Weather unavailable") {
+		t.Fatalf("briefing: %s", snap.Briefing)
+	}
+}
+
 func TestFormatListsRoutinesAndPeople(t *testing.T) {
 	loc, err := time.LoadLocation("Asia/Shanghai")
 	if err != nil {

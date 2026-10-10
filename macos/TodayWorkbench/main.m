@@ -15,6 +15,82 @@
   return [macOS stringByAppendingPathComponent:@"workbench"];
 }
 
+- (NSString *)portFilePath {
+  NSString *home = NSHomeDirectory();
+  return [home stringByAppendingPathComponent:@"Library/Application Support/Today Workbench/port"];
+}
+
+- (NSString *)urlStringFromPortFile {
+  NSString *body = [NSString stringWithContentsOfFile:[self portFilePath]
+                                            encoding:NSUTF8StringEncoding
+                                               error:nil];
+  NSString *addr = [body
+      stringByTrimmingCharactersInSet:[NSCharacterSet whitespaceAndNewlineCharacterSet]];
+  if (addr.length == 0) {
+    return nil;
+  }
+  if ([addr hasPrefix:@"http://"] || [addr hasPrefix:@"https://"]) {
+    return addr;
+  }
+  return [NSString stringWithFormat:@"http://%@/", addr];
+}
+
+- (BOOL)debugFixtureEnabled {
+  NSString *raw = [[[NSProcessInfo processInfo] environment] objectForKey:@"PW_DEBUG_FIXTURE"];
+  if (raw.length == 0) {
+    return NO;
+  }
+  NSString *v = [raw lowercaseString];
+  return !([v isEqualToString:@"0"] || [v isEqualToString:@"false"] ||
+           [v isEqualToString:@"off"] || [v isEqualToString:@"no"]);
+}
+
+- (NSArray<NSString *> *)serverArguments {
+  NSMutableArray<NSString *> *args = [NSMutableArray arrayWithObjects:@"serve", @"--addr=127.0.0.1:8741", nil];
+  if (![self debugFixtureEnabled]) {
+    return args;
+  }
+  // Explicit debug switch only — never the default launch path.
+  [args addObject:@"--debug-fixture"];
+  NSDictionary *env = [[NSProcessInfo processInfo] environment];
+  NSString *now = env[@"PW_DEBUG_NOW"];
+  NSString *wx = env[@"PW_DEBUG_WEATHER"];
+  if (now.length > 0) {
+    [args addObject:[NSString stringWithFormat:@"--now=%@", now]];
+  }
+  if (wx.length > 0) {
+    [args addObject:[NSString stringWithFormat:@"--weather=%@", wx]];
+  }
+  return args;
+}
+
+- (NSString *)waitForServerURL:(NSPipe *)outPipe {
+  NSFileHandle *fh = [outPipe fileHandleForReading];
+  NSMutableData *buf = [NSMutableData data];
+  NSDate *deadline = [NSDate dateWithTimeIntervalSinceNow:4.0];
+  while ([deadline timeIntervalSinceNow] > 0) {
+    NSData *chunk = [fh availableData];
+    if (chunk.length > 0) {
+      [buf appendData:chunk];
+      NSString *s = [[NSString alloc] initWithData:buf encoding:NSUTF8StringEncoding];
+      NSRange nl = [s rangeOfString:@"\n"];
+      if (nl.location != NSNotFound) {
+        NSString *line = [[s substringToIndex:nl.location]
+            stringByTrimmingCharactersInSet:[NSCharacterSet whitespaceAndNewlineCharacterSet]];
+        if (line.length > 0) {
+          return line;
+        }
+      }
+    }
+    NSString *fromFile = [self urlStringFromPortFile];
+    if (fromFile.length > 0) {
+      return fromFile;
+    }
+    [NSThread sleepForTimeInterval:0.05];
+  }
+  return [self urlStringFromPortFile];
+}
+
 - (NSURL *)startServer {
   NSString *bin = [self bundledWorkbench];
   if (![[NSFileManager defaultManager] isExecutableFileAtPath:bin]) {
@@ -24,13 +100,7 @@
   NSPipe *out = [NSPipe pipe];
   NSTask *task = [[NSTask alloc] init];
   task.launchPath = bin;
-  task.arguments = @[
-    @"serve",
-    @"--addr=127.0.0.1:0",
-    @"--tz=Asia/Shanghai",
-    @"--now=2026-10-10T07:15:00+08:00",
-    @"--weather=clear"
-  ];
+  task.arguments = [self serverArguments];
   task.standardOutput = out;
   task.standardError = [NSPipe pipe];
   @try {
@@ -40,11 +110,12 @@
     return nil;
   }
   self.server = task;
-  NSData *data = [[out fileHandleForReading] availableData];
-  NSString *line = [[[NSString alloc] initWithData:data encoding:NSUTF8StringEncoding]
-      stringByTrimmingCharactersInSet:[NSCharacterSet whitespaceAndNewlineCharacterSet]];
+  NSString *line = [self waitForServerURL:out];
   if (line.length == 0) {
     return nil;
+  }
+  if (![line hasSuffix:@"/"]) {
+    line = [line stringByAppendingString:@"/"];
   }
   return [NSURL URLWithString:line];
 }

@@ -16,12 +16,13 @@ func NewMux(now time.Time, loc *time.Location, wx weather.Condition) *http.Serve
 	if loc == nil {
 		loc = time.UTC
 	}
-	if wx == "" {
-		wx = weather.Clear
-	}
+	live := now.IsZero()
 	mux := http.NewServeMux()
 	mux.HandleFunc("/api/today", func(w http.ResponseWriter, r *http.Request) {
 		stamp := now
+		if live {
+			stamp = time.Now().In(loc)
+		}
 		if raw := r.URL.Query().Get("now"); raw != "" {
 			parsed, err := time.Parse(time.RFC3339, raw)
 			if err == nil {
@@ -30,7 +31,7 @@ func NewMux(now time.Time, loc *time.Location, wx weather.Condition) *http.Serve
 		}
 		cond := wx
 		if raw := r.URL.Query().Get("weather"); raw != "" {
-			if parsed, ok := weather.ParseCondition(raw); ok && parsed != weather.Unavailable {
+			if parsed, ok := weather.ParseCondition(raw); ok {
 				cond = parsed
 			}
 		}
@@ -51,24 +52,29 @@ func NewMux(now time.Time, loc *time.Location, wx weather.Condition) *http.Serve
 	return mux
 }
 
-func ListenAndServe(addr string, now time.Time, loc *time.Location, wx weather.Condition) (string, *http.Server, error) {
-	ln, err := net.Listen("tcp", addr)
+func ListenAndServe(addr string, now time.Time, loc *time.Location, wx weather.Condition) (string, *http.Server, string, error) {
+	ln, err := ListenPreferred(addr)
 	if err != nil {
-		return "", nil, err
+		return "", nil, "", err
 	}
-	srv := &http.Server{Handler: NewMux(now, loc, wx)}
-	go func() { _ = srv.Serve(ln) }()
 	host, port, err := net.SplitHostPort(ln.Addr().String())
 	if err != nil {
-		_ = srv.Close()
-		return "", nil, err
+		_ = ln.Close()
+		return "", nil, "", err
 	}
 	if host == "::" || host == "0.0.0.0" {
 		host = "127.0.0.1"
 	}
 	if _, err := strconv.Atoi(port); err != nil {
-		_ = srv.Close()
-		return "", nil, err
+		_ = ln.Close()
+		return "", nil, "", err
 	}
-	return "http://" + host + ":" + port + "/", srv, nil
+	portPath, err := WritePortFile(host, port)
+	if err != nil {
+		_ = ln.Close()
+		return "", nil, "", err
+	}
+	srv := &http.Server{Handler: NewMux(now, loc, wx)}
+	go func() { _ = srv.Serve(ln) }()
+	return "http://" + host + ":" + port + "/", srv, portPath, nil
 }

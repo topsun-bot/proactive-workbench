@@ -54,15 +54,17 @@ func Build(in Input, mem memory.Store) Snapshot {
 		loc = time.UTC
 	}
 	wx := in.Weather
-	if wx == "" {
-		wx = weather.Clear
+	weatherMock := wx != "" && wx != weather.Unavailable
+	weatherLine := "unavailable (no MOCK scenario)"
+	if weatherMock {
+		weatherLine = fmt.Sprintf("%s, %d°C, precip %d%%", wx.DisplayName(), int(wx.TemperatureC()), wx.PrecipPct())
 	}
 	s := Snapshot{
 		Greeting:     greeting(in.Now),
 		DateLabel:    in.Now.Format("Monday, 2 January 2006"),
 		Timezone:     loc.String(),
-		WeatherLine:  fmt.Sprintf("%s, %d°C, precip %d%%", wx.DisplayName(), int(wx.TemperatureC()), wx.PrecipPct()),
-		WeatherMock:  true,
+		WeatherLine:  weatherLine,
+		WeatherMock:  weatherMock,
 		SleepLine:    mem.SleepNote,
 		People:       mem.People,
 		Preferences:  mem.Preferences,
@@ -71,13 +73,19 @@ func Build(in Input, mem memory.Store) Snapshot {
 		Routines:     mem.Routines,
 		MemorySource: mem.SourceLabel,
 	}
+	weatherBrief := s.WeatherLine
+	if weatherMock {
+		weatherBrief = "MOCK weather is " + s.WeatherLine
+	} else {
+		weatherBrief = "Weather " + s.WeatherLine
+	}
 	s.Briefing = fmt.Sprintf(
-		"%s %s. MOCK weather is %s. %s. Next meeting is standup with Sam at 10:00.",
-		s.Greeting, s.DateLabel, s.WeatherLine, mem.SleepNote,
+		"%s %s. %s. %s. Next meeting is standup with Sam at 10:00.",
+		s.Greeting, s.DateLabel, weatherBrief, mem.SleepNote,
 	)
 	s.Signals = []Signal{
 		{Label: "Sleep", Value: fmt.Sprintf("%.1fh last night", mem.SleepHours), Mock: true},
-		{Label: "Weather", Value: s.WeatherLine, Mock: true},
+		{Label: "Weather", Value: s.WeatherLine, Mock: weatherMock},
 		{Label: "Next meeting", Value: "10:00 standup with Sam", Mock: true},
 		{Label: "People nearby", Value: peopleLine(mem.People), Mock: true},
 	}

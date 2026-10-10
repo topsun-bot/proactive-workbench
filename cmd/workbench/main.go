@@ -8,6 +8,7 @@ import (
 	"os"
 	"os/signal"
 	"runtime"
+	"strings"
 	"syscall"
 	"time"
 
@@ -69,7 +70,7 @@ Usage:
   workbench demo [--weather=rain|clear|cloudy|unavailable] [--now=RFC3339] [--tz=IANA]
   workbench plan "<goal>" [--weather=...] [--now=...] [--tz=...]
   workbench today [--weather=...] [--now=...] [--tz=...]
-  workbench serve [--addr=127.0.0.1:8787] [--weather=...] [--now=...] [--tz=...]
+  workbench serve [--addr=127.0.0.1:8741] [--debug-fixture] [--weather=...] [--now=...] [--tz=...]
   workbench tools
   workbench version
 
@@ -148,40 +149,116 @@ func cmdToday(args []string, w io.Writer) error {
 	return nil
 }
 
-func cmdServe(args []string, w io.Writer) error {
+const (
+	debugFixtureNow     = "2026-10-10T07:15:00+08:00"
+	debugFixtureWeather = "clear"
+)
+
+type serveOpts struct {
+	addr       string
+	weather    weather.Condition
+	weatherSet bool
+	now        time.Time
+	tz         *time.Location
+	debugOn    bool
+}
+
+func envTruthy(key string) bool {
+	v := strings.TrimSpace(os.Getenv(key))
+	if v == "" {
+		return false
+	}
+	switch strings.ToLower(v) {
+	case "0", "false", "off", "no":
+		return false
+	default:
+		return true
+	}
+}
+
+func parseServeArgs(args []string, helpOut io.Writer) (serveOpts, error) {
+	opts := serveOpts{addr: today.DefaultListenAddr, tz: time.UTC}
 	fs := flag.NewFlagSet("serve", flag.ContinueOnError)
-	fs.SetOutput(w)
-	addrFlag := fs.String("addr", "127.0.0.1:8787", "listen address")
-	weatherFlag := fs.String("weather", "clear", "mock weather scenario")
-	nowFlag := fs.String("now", "", "override current time (RFC3339)")
+	fs.SetOutput(helpOut)
+	fs.Usage = func() {
+		fmt.Fprint(helpOut, `Usage:
+  workbench serve [--addr=127.0.0.1:8741] [--debug-fixture] [--weather=...] [--now=RFC3339] [--tz=IANA]
+
+Default: real current time and no MOCK weather scenario.
+Mock clock/weather only via --debug-fixture, --now, --weather, or env
+PW_DEBUG_FIXTURE / PW_DEBUG_NOW / PW_DEBUG_WEATHER.
+
+`)
+		fs.PrintDefaults()
+	}
+	addrFlag := fs.String("addr", today.DefaultListenAddr, "listen address (falls back if busy)")
+	weatherFlag := fs.String("weather", "", "MOCK weather scenario (debug only)")
+	nowFlag := fs.String("now", "", "override current time RFC3339 (debug only)")
 	tzFlag := fs.String("tz", "Asia/Shanghai", "IANA timezone")
+	debugFlag := fs.Bool("debug-fixture", false, "use the canned 2026-10-10 07:15 + clear MOCK weather")
 	if err := fs.Parse(args); err != nil {
-		if errors.Is(err, flag.ErrHelp) {
-			return nil
+		return opts, err
+	}
+	opts.addr = *addrFlag
+	opts.debugOn = *debugFlag || envTruthy("PW_DEBUG_FIXTURE")
+
+	nowRaw := *nowFlag
+	if nowRaw == "" {
+		nowRaw = strings.TrimSpace(os.Getenv("PW_DEBUG_NOW"))
+	}
+	wxRaw := *weatherFlag
+	if wxRaw == "" {
+		wxRaw = strings.TrimSpace(os.Getenv("PW_DEBUG_WEATHER"))
+	}
+	if opts.debugOn {
+		if nowRaw == "" {
+			nowRaw = debugFixtureNow
 		}
-		return err
+		if wxRaw == "" {
+			wxRaw = debugFixtureWeather
+		}
 	}
-	cond, ok := weather.ParseCondition(*weatherFlag)
-	if !ok || cond == weather.Unavailable {
-		cond = weather.Clear
-	}
+
 	loc, err := time.LoadLocation(*tzFlag)
 	if err != nil {
-		return fmt.Errorf("invalid --tz: %w", err)
+		return opts, fmt.Errorf("invalid --tz: %w", err)
 	}
-	now := time.Now().In(loc)
-	if *nowFlag != "" {
-		parsed, err := time.Parse(time.RFC3339, *nowFlag)
+	opts.tz = loc
+	if nowRaw != "" {
+		parsed, err := time.Parse(time.RFC3339, nowRaw)
 		if err != nil {
-			return fmt.Errorf("invalid --now: %w", err)
+			return opts, fmt.Errorf("invalid --now: %w", err)
 		}
-		now = parsed.In(loc)
+		opts.now = parsed.In(loc)
 	}
-	url, srv, err := today.ListenAndServe(*addrFlag, now, loc, cond)
+	if wxRaw != "" {
+		cond, ok := weather.ParseCondition(wxRaw)
+		if !ok {
+			return opts, fmt.Errorf("invalid --weather %q (use rain, clear, cloudy, or unavailable)", wxRaw)
+		}
+		opts.weather = cond
+		opts.weatherSet = true
+	}
+	return opts, nil
+}
+
+func cmdServe(args []string, w io.Writer) error {
+	opts, err := parseServeArgs(args, w)
+	if errors.Is(err, flag.ErrHelp) {
+		return nil
+	}
 	if err != nil {
 		return err
 	}
+	url, srv, portPath, err := today.ListenAndServe(opts.addr, opts.now, opts.tz, opts.weather)
+	if err != nil {
+		return err
+	}
+	// First stdout line is the URL (Mac shell parses it). Port path goes to stderr.
 	fmt.Fprintln(w, url)
+	if portPath != "" {
+		fmt.Fprintf(os.Stderr, "port-file: %s\n", portPath)
+	}
 	ch := make(chan os.Signal, 1)
 	signal.Notify(ch, syscall.SIGINT, syscall.SIGTERM)
 	<-ch

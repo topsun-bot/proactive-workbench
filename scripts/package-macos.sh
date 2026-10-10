@@ -46,6 +46,19 @@ cat > "$APP_DIR/Contents/Resources/README.txt" <<EOF
 Proactive Workbench ${VERSION} (${COMMIT})
 Unsigned Mac app. The Today UI is served by the bundled Go core.
 
+Default launch uses the real current time and does not inject MOCK weather.
+Debug fixtures (canned 2026-10-10 07:15 + clear weather):
+  PW_DEBUG_FIXTURE=1
+  PW_DEBUG_NOW=2026-10-10T07:15:00+08:00   (optional)
+  PW_DEBUG_WEATHER=clear                   (optional)
+  or: workbench serve --debug-fixture
+
+Listen address is 127.0.0.1:8741 (PR #3 API.md). If that port is busy the
+core falls back and writes the address actually in use to:
+  macOS:  ~/Library/Application Support/Today Workbench/port
+  Linux:  \${XDG_CONFIG_HOME:-\$HOME/.config}/today-workbench/port
+Override path: PW_PORT_FILE.
+
 Signing and notarization are out of scope.
 EOF
 
