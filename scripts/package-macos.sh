@@ -30,14 +30,18 @@ CGO_ENABLED=0 go build -trimpath \
   ./cmd/workbench
 chmod +x "$APP_DIR/Contents/MacOS/workbench"
 
-echo "==> compile AppKit + WKWebView shell"
+echo "==> compile AppKit + WKWebView + EventKit + Focus gate"
 SDK="$(xcrun --show-sdk-path)"
 clang -fobjc-arc \
   -isysroot "$SDK" \
   -mmacosx-version-min=13.0 \
   -framework Cocoa -framework WebKit \
+  -framework EventKit -framework UserNotifications -framework Intents \
   -o "$APP_DIR/Contents/MacOS/TodayWorkbench" \
-  "$ROOT/macos/TodayWorkbench/main.m"
+  "$ROOT/macos/TodayWorkbench/main.m" \
+  "$ROOT/macos/TodayWorkbench/CalendarSource.m" \
+  "$ROOT/macos/TodayWorkbench/NotificationGate.m" \
+  "$ROOT/macos/TodayWorkbench/gate.c"
 chmod +x "$APP_DIR/Contents/MacOS/TodayWorkbench"
 
 cp "$ROOT/macos/TodayWorkbench/Info.plist" "$APP_DIR/Contents/Info.plist"
@@ -58,6 +62,11 @@ core falls back and writes the address actually in use to:
   macOS:  ~/Library/Application Support/Today Workbench/port
   Linux:  \${XDG_CONFIG_HOME:-\$HOME/.config}/today-workbench/port
 Override path: PW_PORT_FILE.
+
+EventKit (Mac only) feeds calendar.Source-shaped events. Permission is
+optional; denied access falls back to the MOCK schedule. No CoreLocation.
+Banners (gate 2) require suggestion.propose == true and Focus off.
+Missing propose is treated as false.
 
 Signing and notarization are out of scope.
 EOF

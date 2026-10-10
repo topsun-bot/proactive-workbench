@@ -20,5 +20,11 @@
   <string>13.0</string>
   <key>NSHighResolutionCapable</key>
   <true/>
+  <key>NSCalendarsUsageDescription</key>
+  <string>Today Workbench reads your calendar so today’s events can feed the shared calendar.Source used by the Go core. Access is optional; if you decline, the app keeps the MOCK schedule.</string>
+  <key>NSCalendarsFullAccessUsageDescription</key>
+  <string>Today Workbench reads your calendar so today’s events can feed the shared calendar.Source used by the Go core. Access is optional; if you decline, the app keeps the MOCK schedule.</string>
+  <key>NSFocusStatusUsageDescription</key>
+  <string>Today Workbench checks Focus / Do Not Disturb so it never shows a proactive banner while Focus is on.</string>
 </dict>
 </plist>

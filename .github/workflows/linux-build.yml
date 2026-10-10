@@ -28,6 +28,9 @@ jobs:
       - name: Unit tests
         run: go test ./...
 
+      - name: Mac client gate + EventKit-denied tests
+        run: ./macos/test.sh
+
       - name: Run umbrella demo (rain → calendar + alarm)
         run: |
           set -euo pipefail
@@ -139,6 +142,9 @@ jobs:
 
       - name: Unit tests
         run: go test ./...
+
+      - name: Mac client gate + EventKit-denied tests
+        run: ./macos/test.sh
 
       - name: Package unsigned DMG
         run: ./scripts/package-macos.sh

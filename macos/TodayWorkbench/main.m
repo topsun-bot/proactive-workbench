@@ -1,10 +1,17 @@
 #import <Cocoa/Cocoa.h>
 #import <WebKit/WebKit.h>
 
-@interface AppDelegate : NSObject <NSApplicationDelegate>
+#import "CalendarSource.h"
+#import "NotificationGate.h"
+
+@interface AppDelegate : NSObject <NSApplicationDelegate, WKNavigationDelegate>
 @property(nonatomic, strong) NSWindow *window;
 @property(nonatomic, strong) WKWebView *webView;
 @property(nonatomic, strong) NSTask *server;
+@property(nonatomic, strong) CalendarSource *calendar;
+@property(nonatomic, strong) NotificationGate *gate;
+@property(nonatomic, strong) NSURL *serverURL;
+@property(nonatomic, strong) CalendarSourceSnapshot *calendarSnap;
 @end
 
 @implementation AppDelegate
@@ -50,7 +57,6 @@
   if (![self debugFixtureEnabled]) {
     return args;
   }
-  // Explicit debug switch only — never the default launch path.
   [args addObject:@"--debug-fixture"];
   NSDictionary *env = [[NSProcessInfo processInfo] environment];
   NSString *now = env[@"PW_DEBUG_NOW"];
@@ -120,7 +126,72 @@
   return [NSURL URLWithString:line];
 }
 
+- (NSString *)jsString:(NSString *)raw {
+  if (raw == nil) {
+    return @"''";
+  }
+  NSError *err = nil;
+  NSData *data = [NSJSONSerialization dataWithJSONObject:raw options:NSJSONWritingFragmentsAllowed error:&err];
+  if (data == nil) {
+    return @"''";
+  }
+  return [[NSString alloc] initWithData:data encoding:NSUTF8StringEncoding];
+}
+
+- (void)injectCalendarIntoWebView {
+  if (self.webView == nil || self.calendarSnap == nil) {
+    return;
+  }
+  CalendarSourceSnapshot *snap = self.calendarSnap;
+  NSMutableString *js = [NSMutableString string];
+  [js appendString:@"(function(){"];
+  [js appendString:@"var tasks=document.getElementById('tasks');"];
+  [js appendString:@"if(!tasks) return;"];
+  [js appendString:@"var old=document.getElementById('eventkit-note');"];
+  [js appendString:@"if(old) old.remove();"];
+  [js appendString:@"var note=document.createElement('p');"];
+  [js appendString:@"note.id='eventkit-note';"];
+  [js appendString:@"note.className='date';"];
+  if ([snap.auth isEqualToString:@"granted"]) {
+    [js appendFormat:@"note.textContent='Calendar: EventKit (live) · %lu event(s). Location stays MOCK — no CoreLocation.';",
+                     (unsigned long)snap.events.count];
+    [js appendString:@"tasks.parentNode.insertBefore(note, tasks);"];
+    for (CalendarSourceEvent *e in snap.events) {
+      [js appendString:@"{"];
+      [js appendString:@"var art=document.createElement('article'); art.className='task';"];
+      [js appendFormat:@"var time=document.createElement('time'); time.textContent=%@; art.appendChild(time);",
+                       [self jsString:e.start]];
+      [js appendFormat:@"var h=document.createElement('h3'); h.textContent=%@; art.appendChild(h);",
+                       [self jsString:e.title]];
+      [js appendString:@"var k=document.createElement('div'); k.className='kind'; k.textContent='eventkit'; art.appendChild(k);"];
+      [js appendString:@"tasks.appendChild(art);"];
+      [js appendString:@"}"];
+    }
+  } else {
+    [js appendString:@"note.textContent='Calendar: EventKit permission denied — MOCK schedule from the Go core.';"];
+    [js appendString:@"tasks.parentNode.insertBefore(note, tasks);"];
+  }
+  [js appendString:@"})();"];
+  [self.webView evaluateJavaScript:js completionHandler:nil];
+}
+
+- (void)webView:(WKWebView *)webView didFinishNavigation:(WKNavigation *)navigation {
+  (void)webView;
+  (void)navigation;
+  [self injectCalendarIntoWebView];
+  if (self.serverURL != nil) {
+    [self.gate evaluateTodayURL:self.serverURL
+                     completion:^(NSUInteger shown, NSString *log) {
+                       NSLog(@"gate2 shown=%lu %@", (unsigned long)shown, log);
+                     }];
+  }
+}
+
 - (void)applicationDidFinishLaunching:(NSNotification *)notification {
+  (void)notification;
+  self.calendar = [[CalendarSource alloc] init];
+  self.gate = [[NotificationGate alloc] init];
+
   NSRect frame = NSMakeRect(120, 80, 1040, 780);
   self.window = [[NSWindow alloc]
       initWithContentRect:frame
@@ -132,32 +203,45 @@
   WKWebViewConfiguration *cfg = [[WKWebViewConfiguration alloc] init];
   self.webView = [[WKWebView alloc] initWithFrame:self.window.contentView.bounds configuration:cfg];
   self.webView.autoresizingMask = NSViewWidthSizable | NSViewHeightSizable;
+  self.webView.navigationDelegate = self;
   [self.window.contentView addSubview:self.webView];
 
   NSURL *url = [self startServer];
+  self.serverURL = url;
   if (url != nil) {
     [self.webView loadRequest:[NSURLRequest requestWithURL:url]];
   } else {
     NSString *html = @"<html><body style='font:20px Palatino;padding:40px'>Could not start the bundled Go core.</body></html>";
     [self.webView loadHTMLString:html baseURL:nil];
   }
+
+  /* EventKit permission is requested here. Denied → empty calendar.Source + MOCK UI. */
+  [self.calendar requestAccessAndLoad:^(CalendarSourceSnapshot *snapshot) {
+    self.calendarSnap = snapshot;
+    [self injectCalendarIntoWebView];
+  }];
+
   [self.window makeKeyAndOrderFront:nil];
   [NSApp activateIgnoringOtherApps:YES];
 }
 
 - (void)applicationWillTerminate:(NSNotification *)notification {
+  (void)notification;
   if (self.server.running) {
     [self.server terminate];
   }
 }
 
 - (BOOL)applicationShouldTerminateAfterLastWindowClosed:(NSApplication *)sender {
+  (void)sender;
   return YES;
 }
 
 @end
 
 int main(int argc, const char *argv[]) {
+  (void)argc;
+  (void)argv;
   @autoreleasepool {
     NSApplication *app = [NSApplication sharedApplication];
     AppDelegate *delegate = [[AppDelegate alloc] init];
