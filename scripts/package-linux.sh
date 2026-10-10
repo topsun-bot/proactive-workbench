@@ -57,5 +57,9 @@ tar -C "$OUT_DIR" -czf "$TARBALL" "$(basename "$STAGE")"
 
 echo "==> artifact"
 ls -lh "$TARBALL" "$STAGE/workbench"
-sha256sum "$TARBALL" | tee "$TARBALL.sha256"
+# Record only the basename so sha256sum -c works after download.
+(
+	cd "$OUT_DIR"
+	sha256sum "$(basename "$TARBALL")" | tee "$(basename "$TARBALL").sha256"
+)
 echo "TARBALL=$TARBALL"

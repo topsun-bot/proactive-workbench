@@ -70,14 +70,19 @@ func (t *Tool) Handle(req tool.Request) (tool.Result, error) {
 		if err != nil {
 			return tool.Result{}, tool.InvalidPayload("fireDate must be RFC3339")
 		}
-		rec := t.Create(label, fireAt, payload(req, "createdByFlow"))
+		flow := payload(req, "createdByFlow")
+		if flow == "" {
+			flow = "plugin"
+		}
+		rec := t.Create(label, fireAt, flow)
 		return tool.Result{
 			Success: true,
 			Summary: "Set alarm “" + rec.Label + "”",
 			Data: map[string]string{
-				"id":       rec.ID,
-				"label":    rec.Label,
-				"fireDate": rec.FireAt.Format(time.RFC3339),
+				"id":            rec.ID,
+				"label":         rec.Label,
+				"fireDate":      rec.FireAt.Format(time.RFC3339),
+				"createdByFlow": rec.CreatedByFlow,
 			},
 		}, nil
 	case "listAlarms":
@@ -90,6 +95,26 @@ func (t *Tool) Handle(req tool.Request) (tool.Result, error) {
 	default:
 		return tool.Result{}, tool.Unsupported(req.Action)
 	}
+}
+
+// RecordFromResult rebuilds a Record from a plugin Handle("createAlarm") result.
+func RecordFromResult(res tool.Result) (Record, error) {
+	if !res.Success {
+		return Record{}, tool.InvalidPayload("createAlarm plugin reported failure")
+	}
+	if res.Data == nil || res.Data["id"] == "" || res.Data["label"] == "" {
+		return Record{}, tool.InvalidPayload("createAlarm result is incomplete")
+	}
+	fireAt, err := time.Parse(time.RFC3339, res.Data["fireDate"])
+	if err != nil {
+		return Record{}, tool.InvalidPayload("createAlarm result fireDate must be RFC3339")
+	}
+	return Record{
+		ID:            res.Data["id"],
+		Label:         res.Data["label"],
+		FireAt:        fireAt,
+		CreatedByFlow: res.Data["createdByFlow"],
+	}, nil
 }
 
 func payload(req tool.Request, key string) string {

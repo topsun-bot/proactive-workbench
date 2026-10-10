@@ -74,6 +74,8 @@ scripts/package-linux.sh   linux/amd64 tar.gz
 
 ## Plugin interface
 
+The planner and umbrella flow call tools only through `tool.Registry` / `Handle`. A replacement registered under the same id (for example a live weather plugin) is used without rewriting the flow.
+
 Every tool implements `tool.Tool`:
 
 - `Descriptor()` — id, name, summary
@@ -109,7 +111,7 @@ go run ./cmd/workbench tools
 go test ./...
 ```
 
-Coverage: rain → calendar+alarm, clear/cloudy → skip, EN/中文 intent, mock label on the weather plugin, CLI demo output.
+Coverage: rain → calendar+alarm, clear/cloudy → skip, EN/中文 intent, rejection of other umbrella times, planner via the plugin registry, mock label on the weather plugin, CLI demo output and `--help`.
 
 ## Linux package
 
