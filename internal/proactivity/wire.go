@@ -33,10 +33,40 @@ type WireTick struct {
 	GoalReason         string      `json:"goalReason"`
 	GoalScore          int         `json:"goalScore"`
 	PlanSteps          []string    `json:"planSteps"`
+	Propose            bool        `json:"propose"`
+	Reason             string      `json:"reason"`
 	Interrupt          bool        `json:"interrupt"`
 	DecisionReason     string      `json:"decisionReason"`
 	Fingerprint        string      `json:"fingerprint"`
 	SourcesAreFixtures bool        `json:"sourcesAreFixtures"`
+}
+
+// WireSuggestion is one item in GET /api/today suggestions[].
+// propose and reason are the core’s first notify gate (quiet hours /
+// score / dedupe). The Mac client applies OS Focus as a second gate.
+type WireSuggestion struct {
+	Title   string `json:"title"`
+	Body    string `json:"body"`
+	Kind    string `json:"kind"`
+	Source  string `json:"source"`
+	Propose bool   `json:"propose"`
+	Reason  string `json:"reason"`
+}
+
+// WireToday is the Today view. GET /api/today returns this object
+// without an envelope so Shaoruru’s NotificationGate can read
+// suggestions[] at the root. GET /v1/today wraps the same object.
+type WireToday struct {
+	At                 string           `json:"at"`
+	Place              string           `json:"place"`
+	Activity           string           `json:"activity"`
+	LocationSource     string           `json:"locationSource"`
+	WeatherCondition   string           `json:"weatherCondition"`
+	WeatherSource      string           `json:"weatherSource"`
+	GoalKind           string           `json:"goalKind"`
+	Brief              *Brief           `json:"brief,omitempty"`
+	Suggestions        []WireSuggestion `json:"suggestions"`
+	SourcesAreFixtures bool             `json:"sourcesAreFixtures"`
 }
 
 type WireHealth struct {
@@ -75,9 +105,39 @@ func ResultToWire(r Result) WireTick {
 		GoalReason:         r.Goal.Reason,
 		GoalScore:          r.Goal.Score,
 		PlanSteps:          r.Plan.Steps,
+		Propose:            r.Decision.Propose,
+		Reason:             r.Decision.Reason,
 		Interrupt:          r.Decision.Interrupt,
 		DecisionReason:     r.Decision.Reason,
 		Fingerprint:        r.Decision.Fingerprint,
+		SourcesAreFixtures: r.Perception.Weather.IsMock || r.Perception.Situation.IsMock,
+	}
+}
+
+const suggestionGateSource = "proactivity.Core first gate (quiet hours / score / dedupe)"
+
+func ResultToSuggestion(r Result) WireSuggestion {
+	return WireSuggestion{
+		Title:   r.Goal.Title,
+		Body:    r.Goal.Reason,
+		Kind:    string(r.Goal.Kind),
+		Source:  suggestionGateSource,
+		Propose: r.Decision.Propose,
+		Reason:  r.Decision.Reason,
+	}
+}
+
+func ResultToToday(r Result, brief Brief) WireToday {
+	return WireToday{
+		At:                 r.Perception.At.Format(time.RFC3339),
+		Place:              string(r.Perception.Situation.Place),
+		Activity:           string(r.Perception.Situation.Activity),
+		LocationSource:     r.Perception.Situation.Source,
+		WeatherCondition:   string(r.Perception.NowWeather.Condition),
+		WeatherSource:      r.Perception.Weather.Source,
+		GoalKind:           string(r.Goal.Kind),
+		Brief:              &brief,
+		Suggestions:        []WireSuggestion{ResultToSuggestion(r)},
 		SourcesAreFixtures: r.Perception.Weather.IsMock || r.Perception.Situation.IsMock,
 	}
 }

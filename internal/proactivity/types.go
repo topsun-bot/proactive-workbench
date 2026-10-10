@@ -41,6 +41,12 @@ type Perception struct {
 }
 
 type Decision struct {
+	// Propose is the core’s first gate (quiet hours, score, dedupe).
+	// It is not a final “show a banner” / notify decision — the client
+	// applies OS Focus / Do Not Disturb as a second gate.
+	Propose bool
+	// Interrupt is a legacy alias of Propose for existing CLI tests.
+	// It is not a notify decision.
 	Interrupt   bool
 	Reason      string
 	Fingerprint string

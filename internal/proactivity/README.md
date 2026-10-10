@@ -29,14 +29,18 @@ memory (preferences, people, commitments, long-term goals).
 Default interrupt threshold is **70**. Quiet hours come from `Policy` and
 are overlaid from memory keys `quiet_hours_start` / `quiet_hours_end`.
 
-## Interrupt policy
+## Interrupt policy (first gate)
 
-A tick **does not interrupt** when any of these hold:
+A tick sets `propose=false` (and legacy `interrupt=false`) when any of these hold:
 
 1. Goal is `none`
 2. Score &lt; `MinScore`
 3. Quiet hours (policy or memory)
 4. Fingerprint equals the last interrupt (dedupe)
+
+`propose` + `reason` are on each `suggestions[]` item from `GET /api/today`
+and on `POST /v1/tick`. The Mac client applies OS Focus as a second gate.
+This package does not implement Focus-mode.
 
 Fingerprint = `YYYY-MM-DD|place|weather|goal|sorted event UIDs`.
 
@@ -49,7 +53,9 @@ next-24h calendar + memory. Fixture runs say
 ## Scheduler
 
 `morning_brief` once per local day at the configured clock (default 08:00).
-`sense_tick` every 15 minutes. Injected `clock.Clock`. Last-run is in-process.
+`sense_tick` every 15 minutes. Injected `clock.Clock`. Last-run persists
+under `~/Library/Application Support/Today Workbench/` (macOS) or
+`$XDG_CONFIG_HOME/today-workbench/` (Linux). Path is injectable for tests.
 
 ## CLI
 

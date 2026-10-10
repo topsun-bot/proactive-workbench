@@ -33,23 +33,43 @@ type RoutineStatus struct {
 	LastRun         string `json:"lastRun,omitempty"`
 }
 
-// Scheduler is in-process. Last-run times are not written to disk.
+// Scheduler tracks last-run times. When persistPath is set, MarkRan writes
+// JSON atomically so morning_brief does not fire again after a same-day restart.
 type Scheduler struct {
-	clk      clock.Clock
-	mu       sync.Mutex
-	last     map[RoutineKind]time.Time
-	interval time.Duration
+	clk         clock.Clock
+	mu          sync.Mutex
+	last        map[RoutineKind]time.Time
+	interval    time.Duration
+	persistPath string
 }
 
 func NewScheduler(clk clock.Clock, senseEvery time.Duration) *Scheduler {
+	return NewPersistentScheduler(clk, senseEvery, "")
+}
+
+// NewPersistentScheduler loads last-run from path (missing/corrupt → empty).
+// Tests should pass a temp file; production uses DefaultLastRunPath.
+func NewPersistentScheduler(clk clock.Clock, senseEvery time.Duration, persistPath string) *Scheduler {
 	if senseEvery <= 0 {
 		senseEvery = DefaultSenseInterval
 	}
-	return &Scheduler{
-		clk:      clk,
-		last:     map[RoutineKind]time.Time{},
-		interval: senseEvery,
+	last := map[RoutineKind]time.Time{}
+	if persistPath != "" {
+		last = loadLastRun(persistPath)
 	}
+	return &Scheduler{
+		clk:         clk,
+		last:        last,
+		interval:    senseEvery,
+		persistPath: persistPath,
+	}
+}
+
+func (s *Scheduler) PersistPath() string {
+	if s == nil {
+		return ""
+	}
+	return s.persistPath
 }
 
 func (s *Scheduler) now() time.Time {
@@ -112,6 +132,9 @@ func (s *Scheduler) MarkRan(kind RoutineKind, at time.Time) {
 		s.last = map[RoutineKind]time.Time{}
 	}
 	s.last[kind] = at
+	if s.persistPath != "" {
+		_ = saveLastRun(s.persistPath, s.last)
+	}
 }
 
 func (s *Scheduler) Last(kind RoutineKind) time.Time {

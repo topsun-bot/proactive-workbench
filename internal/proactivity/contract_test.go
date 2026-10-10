@@ -11,6 +11,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/topsun-bot/proactive-workbench/internal/clock"
 	"github.com/topsun-bot/proactive-workbench/internal/datasources/calendar"
 	"github.com/topsun-bot/proactive-workbench/internal/datasources/situation"
 	"github.com/topsun-bot/proactive-workbench/internal/datasources/weather"
@@ -86,8 +87,11 @@ func TestContractHealthTickBriefMemoryRoutines(t *testing.T) {
 	if err := json.Unmarshal(data, &tick); err != nil {
 		t.Fatal(err)
 	}
-	if tick.GoalKind != string(proactivity.GoalVisitPark) || !tick.Interrupt || !tick.SourcesAreFixtures {
+	if tick.GoalKind != string(proactivity.GoalVisitPark) || !tick.Interrupt || !tick.Propose || !tick.SourcesAreFixtures {
 		t.Fatalf("tick %#v", tick)
+	}
+	if tick.Reason == "" || tick.DecisionReason != tick.Reason {
+		t.Fatalf("tick reason %#v", tick)
 	}
 	if _, err := time.Parse(time.RFC3339, tick.At); err != nil {
 		t.Fatalf("at: %v", err)
@@ -155,6 +159,94 @@ func TestContractHealthTickBriefMemoryRoutines(t *testing.T) {
 	}
 	if len(runs) == 0 {
 		t.Fatal("expected due routines on first run")
+	}
+}
+
+func TestContractAPITodayProposeReason(t *testing.T) {
+	h := proactivity.Handler(testCore(t))
+
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, loopbackReq(http.MethodGet, "/api/today", nil))
+	if rec.Code != 200 {
+		t.Fatalf("code %d body %s", rec.Code, rec.Body.String())
+	}
+	var raw map[string]json.RawMessage
+	if err := json.Unmarshal(rec.Body.Bytes(), &raw); err != nil {
+		t.Fatal(err)
+	}
+	if _, wrapped := raw["ok"]; wrapped {
+		t.Fatalf("/api/today must be bare JSON, not an envelope: %s", rec.Body.String())
+	}
+	var today proactivity.WireToday
+	if err := json.Unmarshal(rec.Body.Bytes(), &today); err != nil {
+		t.Fatal(err)
+	}
+	if len(today.Suggestions) != 1 {
+		t.Fatalf("suggestions %#v", today.Suggestions)
+	}
+	sug := today.Suggestions[0]
+	if !sug.Propose {
+		t.Fatalf("park afternoon should propose: %#v", sug)
+	}
+	if sug.Reason == "" {
+		t.Fatal("reason must be a non-empty string")
+	}
+	if !strings.Contains(today.LocationSource, "MOCK") {
+		t.Fatalf("location must be labeled MOCK: %q", today.LocationSource)
+	}
+
+	rec = httptest.NewRecorder()
+	proactivity.Handler(testCore(t)).ServeHTTP(rec, loopbackReq(http.MethodGet, "/v1/today", nil))
+	ok, _, data := decodeEnvelope(t, rec)
+	if !ok {
+		t.Fatal(rec.Body.String())
+	}
+	var enveloped proactivity.WireToday
+	if err := json.Unmarshal(data, &enveloped); err != nil {
+		t.Fatal(err)
+	}
+	if len(enveloped.Suggestions) != 1 || !enveloped.Suggestions[0].Propose || enveloped.Suggestions[0].Reason == "" {
+		t.Fatalf("/v1/today %#v", enveloped.Suggestions)
+	}
+}
+
+func TestContractTodayQuietHoursProposeFalse(t *testing.T) {
+	store, err := memory.OpenFile(filepath.Join(t.TempDir(), "memory.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := store.SeedFixture(); err != nil {
+		t.Fatal(err)
+	}
+	loc, err := time.LoadLocation("Asia/Shanghai")
+	if err != nil {
+		t.Fatal(err)
+	}
+	s := sensors(
+		weather.FixtureClear,
+		situation.MustMock(situation.PlaceHome, situation.ActivityIdle),
+		calendar.NewMock(),
+		clock.Fixed(time.Date(2026, 10, 10, 23, 30, 0, 0, loc), loc),
+	)
+	core, err := proactivity.NewCore(s, proactivity.DefaultPolicy(), store)
+	if err != nil {
+		t.Fatal(err)
+	}
+	h := proactivity.Handler(core)
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, loopbackReq(http.MethodGet, "/api/today", nil))
+	var today proactivity.WireToday
+	if err := json.Unmarshal(rec.Body.Bytes(), &today); err != nil {
+		t.Fatal(err)
+	}
+	if len(today.Suggestions) != 1 {
+		t.Fatalf("suggestions %#v", today.Suggestions)
+	}
+	if today.Suggestions[0].Propose {
+		t.Fatalf("23:30 must not propose: %#v", today.Suggestions[0])
+	}
+	if !strings.Contains(today.Suggestions[0].Reason, "quiet hours") {
+		t.Fatalf("reason %q", today.Suggestions[0].Reason)
 	}
 }
 

@@ -77,6 +77,7 @@ func Decide(p Perception, g Goal, policy Policy, mem *Dedupe) Decision {
 		return d
 	}
 
+	d.Propose = true
 	d.Interrupt = true
 	d.Reason = fmt.Sprintf("new high-value suggestion (%s, score %d)", g.Kind, g.Score)
 	return d

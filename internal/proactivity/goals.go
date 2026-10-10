@@ -72,6 +72,9 @@ func scorePark(p Perception, snap memory.Snapshot) Goal {
 	return g
 }
 
+// scoreUmbrella proposes an umbrella_reminder. Hosts that *execute* the
+// goal should call existing umbrella.Execute (internal/flow/umbrella)
+// through the tool registry. This package does not write calendar events.
 func scoreUmbrella(p Perception) Goal {
 	g := Goal{
 		Kind:        GoalUmbrellaReminder,

@@ -73,6 +73,7 @@ tick extra:
 
 serve extra:
   --listen=127.0.0.1:8741       Loopback only (see internal/proactivity/API.md)
+  --last-run-file=PATH          Persist routine last-run JSON (default: platform path)
 
 Weather, calendar, situation, and fixture memory are FIXTURES. This command
 does not call Open-Meteo or any calendar host.
@@ -91,6 +92,7 @@ type commonOpts struct {
 	asJSON          bool
 	repeat          int
 	listen          string
+	lastRunFile     string
 }
 
 func parseCommon(name string, args []string, extra func(*flag.FlagSet, *commonOpts)) (commonOpts, error) {
@@ -319,6 +321,7 @@ func cmdMemory(args []string, w io.Writer) error {
 func cmdServe(args []string, stdout, stderr io.Writer) error {
 	opts, err := parseCommon("serve", args, func(fs *flag.FlagSet, o *commonOpts) {
 		fs.StringVar(&o.listen, "listen", "127.0.0.1:8741", "loopback address")
+		fs.StringVar(&o.lastRunFile, "last-run-file", "", "routine last-run JSON (empty = platform default)")
 	})
 	if err != nil {
 		return err
@@ -344,12 +347,18 @@ func cmdServe(args []string, stdout, stderr io.Writer) error {
 			return err
 		}
 	}
-	core, err := proactivity.NewCore(sensors, proactivity.DefaultPolicy(), store)
+	lastRun := opts.lastRunFile
+	if lastRun == "" {
+		lastRun = proactivity.DefaultLastRunPath("", nil)
+	}
+	core, err := proactivity.NewCoreWithLastRun(sensors, proactivity.DefaultPolicy(), store, lastRun)
 	if err != nil {
 		return err
 	}
 	fmt.Fprintf(stdout, "proactivity API listening on http://%s (loopback only)\n", addr)
 	fmt.Fprintf(stdout, "memory file: %s\n", store.Path())
+	fmt.Fprintf(stdout, "last-run file: %s\n", lastRun)
+	fmt.Fprintln(stdout, "GET /api/today is the Today alias (bare JSON; see API.md)")
 	fmt.Fprintln(stdout, "see internal/proactivity/API.md")
 	srv := &http.Server{
 		Addr:              addr,

@@ -21,6 +21,13 @@ type Core struct {
 }
 
 func NewCore(sensors Sensors, policy Policy, store memory.Store) (*Core, error) {
+	return NewCoreWithLastRun(sensors, policy, store, "")
+}
+
+// NewCoreWithLastRun is NewCore plus an injectable last-run file.
+// An empty path keeps last-run in-process (tests). Production serve uses
+// DefaultLastRunPath (macOS Application Support / Linux XDG config).
+func NewCoreWithLastRun(sensors Sensors, policy Policy, store memory.Store, lastRunPath string) (*Core, error) {
 	if err := sensors.valid(); err != nil {
 		return nil, err
 	}
@@ -39,8 +46,22 @@ func NewCore(sensors Sensors, policy Policy, store memory.Store) (*Core, error) 
 		Policy:    policy,
 		Dedupe:    NewDedupe(),
 		Store:     store,
-		Scheduler: NewScheduler(clk, DefaultSenseInterval),
+		Scheduler: NewPersistentScheduler(clk, DefaultSenseInterval, lastRunPath),
 	}, nil
+}
+
+// Today is one sense cycle plus the Today view Shaoruru’s client loads
+// from GET /api/today. Each suggestions[] item carries propose + reason.
+func (c *Core) Today(ctx context.Context) (WireToday, error) {
+	res, err := c.Tick(ctx)
+	if err != nil {
+		return WireToday{}, err
+	}
+	brief, err := c.Brief(ctx)
+	if err != nil {
+		return WireToday{}, err
+	}
+	return ResultToToday(res, brief), nil
 }
 
 func (c *Core) snapshot() (memory.Snapshot, error) {

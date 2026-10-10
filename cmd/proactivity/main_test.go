@@ -111,4 +111,10 @@ func TestTickJSON(t *testing.T) {
 	if !strings.Contains(out.String(), `"goalKind": "visit_park"`) && !strings.Contains(out.String(), `"goalKind":"visit_park"`) {
 		t.Fatalf("goal\n%s", out.String())
 	}
+	if !strings.Contains(out.String(), `"propose": true`) && !strings.Contains(out.String(), `"propose":true`) {
+		t.Fatalf("propose\n%s", out.String())
+	}
+	if !strings.Contains(out.String(), `"reason"`) {
+		t.Fatalf("reason\n%s", out.String())
+	}
 }
