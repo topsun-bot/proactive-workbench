@@ -64,13 +64,14 @@ internal/flow/umbrella     Cross-tool umbrella flow
 internal/planner           Goal → flow via tool.Registry
 internal/intent            Phrase matching (EN + 中文)
 internal/datasources/      weather (Open-Meteo client + fixtures) | calendar (ICS, CalDAV stub) | situation (MOCK)
+internal/connector/        Unified 7-domain Connector contract, Registry, incremental SyncEngine, local test adapters
 internal/memory/           Local JSON long-term memory
 internal/proactivity/      sense → goal → plan → interrupt, brief, routines, HTTP API
 internal/today/            Today-style snapshot, embedded web UI, port file
 macos/TodayWorkbench/      AppKit/WKWebView shell, EventKit, notification gate
 scripts/package-linux.sh   linux/amd64 tar.gz
 scripts/package-macos.sh   unsigned DMG
-tests/smoke/               Smoke scripts (still waiting to be wired to the product entry points)
+tests/smoke/               Smoke & multi-scenario inspection scripts (build, serve liveness, rain/clear/unavailable/today)
 .github/workflows/         CI: ubuntu-latest + macos-latest
 ```
 
@@ -129,4 +130,4 @@ go test ./...
 
 - On main since 2026-10-10: PR #1, #2, #3, #5. TODO rows 2–7 and 15–17 are done.
 - Still needs a person at the Mac (TODO 9): native window, calendar permission allow / deny, banner with Focus on / off.
-- Not wired yet: live Open-Meteo, a real ICS / CalDAV calendar on Linux, real location. Smoke tests in `tests/smoke/` still need wiring to the product entry points (TODO 12).
+- Not wired yet: live Open-Meteo, a real ICS / CalDAV calendar on Linux, real location. Smoke tests in `tests/smoke/` and workday inspection workflow are wired and verified (TODO 12 done).

@@ -263,3 +263,24 @@ func TestPlanRejectsUnsupportedUmbrellaTime(t *testing.T) {
 		t.Fatalf("expected unrecognized goal, got\n%s", out.String())
 	}
 }
+
+func TestTodayUnavailableDoesNotInventClear(t *testing.T) {
+	var out bytes.Buffer
+	err := run([]string{
+		"today",
+		"--weather=unavailable",
+		"--tz=Asia/Shanghai",
+		"--now=2026-10-10T07:15:00+08:00",
+	}, &out, &out)
+	if err != nil {
+		t.Fatal(err)
+	}
+	text := out.String()
+	if !strings.Contains(text, "Weather unavailable (no MOCK scenario)") {
+		t.Fatalf("expected honest unavailable weather line, got:\n%s", text)
+	}
+	if strings.Contains(text, "Clear · 22°C") {
+		t.Fatalf("today --weather=unavailable must not fabricate Clear · 22°C:\n%s", text)
+	}
+}
+

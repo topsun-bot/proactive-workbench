@@ -31,6 +31,12 @@ jobs:
       - name: Mac client gate + EventKit-denied tests
         run: ./macos/test.sh
 
+      - name: Run Linux smoke tests
+        run: |
+          set -euo pipefail
+          bash tests/smoke/selftest.sh
+          PW_SMOKE_STRICT=1 bash tests/smoke/run_smoke.sh
+
       - name: Run umbrella demo (rain → calendar + alarm)
         run: |
           set -euo pipefail
