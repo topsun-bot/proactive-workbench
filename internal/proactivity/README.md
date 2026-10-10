@@ -38,9 +38,11 @@ A tick sets `propose=false` (and legacy `interrupt=false`) when any of these hol
 3. Quiet hours (policy or memory)
 4. Fingerprint equals the last interrupt (dedupe)
 
-`propose` + `reason` are on each `suggestions[]` item from `GET /api/today`
-and on `POST /v1/tick`. The Mac client applies OS Focus as a second gate.
-This package does not implement Focus-mode.
+`propose` + `reason` are on each `suggestions[]` item from `GET /v1/today`
+and on `POST /v1/tick`. Copy them onto the UI Snapshot via
+`FirstGateFrom(result)` — do not recompute. The Mac client applies OS
+Focus as a second gate. This package does not implement Focus-mode or
+`GET /api/today`.
 
 Fingerprint = `YYYY-MM-DD|place|weather|goal|sorted event UIDs`.
 

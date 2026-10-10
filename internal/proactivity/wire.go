@@ -41,9 +41,8 @@ type WireTick struct {
 	SourcesAreFixtures bool        `json:"sourcesAreFixtures"`
 }
 
-// WireSuggestion is one item in GET /api/today suggestions[].
-// propose and reason are the core’s first notify gate (quiet hours /
-// score / dedupe). The Mac client applies OS Focus as a second gate.
+// WireSuggestion is one item in GET /v1/today data.suggestions[].
+// Propose and Reason are copied from FirstGateFrom (do not recompute).
 type WireSuggestion struct {
 	Title   string `json:"title"`
 	Body    string `json:"body"`
@@ -53,9 +52,8 @@ type WireSuggestion struct {
 	Reason  string `json:"reason"`
 }
 
-// WireToday is the Today view. GET /api/today returns this object
-// without an envelope so Shaoruru’s NotificationGate can read
-// suggestions[] at the root. GET /v1/today wraps the same object.
+// WireToday is the core Today contract. GET /v1/today returns it inside
+// the envelope. /api/today is owned by workbench serve (UI Snapshot).
 type WireToday struct {
 	At                 string           `json:"at"`
 	Place              string           `json:"place"`
@@ -117,13 +115,14 @@ func ResultToWire(r Result) WireTick {
 const suggestionGateSource = "proactivity.Core first gate (quiet hours / score / dedupe)"
 
 func ResultToSuggestion(r Result) WireSuggestion {
+	gate := FirstGateFrom(r)
 	return WireSuggestion{
 		Title:   r.Goal.Title,
 		Body:    r.Goal.Reason,
 		Kind:    string(r.Goal.Kind),
 		Source:  suggestionGateSource,
-		Propose: r.Decision.Propose,
-		Reason:  r.Decision.Reason,
+		Propose: gate.Propose,
+		Reason:  gate.Reason,
 	}
 }
 

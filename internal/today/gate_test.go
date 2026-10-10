@@ -56,19 +56,17 @@ func TestCoreProposeReachesSnapshotUnchangedAndDrivesMacGate(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			wire, err := core.Today(context.Background())
+			res, err := core.Tick(context.Background())
 			if err != nil {
 				t.Fatal(err)
 			}
-			if len(wire.Suggestions) == 0 {
-				t.Fatal("core returned no suggestions")
-			}
-			got := wire.Suggestions[0]
+			got := proactivity.FirstGateFrom(res)
 			if got.Propose != tc.propose {
-				t.Fatalf("core propose=%v want %v reason=%q", got.Propose, tc.propose, got.Reason)
+				t.Fatalf("FirstGateFrom propose=%v want %v reason=%q", got.Propose, tc.propose, got.Reason)
 			}
+			wireSug := proactivity.ResultToSuggestion(res)
 
-			// Fresh Core so Build's Today is the first tick (no dedupe).
+			// Fresh Core so Build's Tick is the first cycle (no dedupe).
 			snapCore, err := NewServeCore(tc.now, loc, tc.wx)
 			if err != nil {
 				t.Fatal(err)
@@ -79,13 +77,13 @@ func TestCoreProposeReachesSnapshotUnchangedAndDrivesMacGate(t *testing.T) {
 			}
 			s := snap.Suggestions[0]
 			if s.Propose != got.Propose {
-				t.Fatalf("snapshot propose=%v core=%v (recomputed?)", s.Propose, got.Propose)
+				t.Fatalf("snapshot propose=%v FirstGateFrom=%v (recomputed?)", s.Propose, got.Propose)
 			}
 			if s.Reason != got.Reason {
-				t.Fatalf("snapshot reason=%q core=%q (recomputed?)", s.Reason, got.Reason)
+				t.Fatalf("snapshot reason=%q FirstGateFrom=%q (recomputed?)", s.Reason, got.Reason)
 			}
-			if s.Title != got.Title || s.Body != got.Body || s.Kind != got.Kind || s.Source != got.Source {
-				t.Fatalf("snapshot suggestion %+v != core %+v", s, got)
+			if s.Title != wireSug.Title || s.Body != wireSug.Body || s.Kind != wireSug.Kind || s.Source != wireSug.Source {
+				t.Fatalf("snapshot suggestion %+v != ResultToSuggestion %+v", s, wireSug)
 			}
 
 			raw, err := json.Marshal(snap)

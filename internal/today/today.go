@@ -118,32 +118,26 @@ func peopleLine(people []Person) string {
 	return strings.Join(names, ", ")
 }
 
-// suggestionsFromCore copies Core.Today suggestions, including propose/reason,
-// without running Decide or any other gate-1 logic in this package.
+// suggestionsFromCore copies FirstGateFrom after Core.Tick. Gate 1
+// (quiet hours / score / dedupe) is not recomputed in this package.
 func suggestionsFromCore(core *proactivity.Core) []Suggestion {
 	if core == nil {
 		return nil
 	}
-	wire, err := core.Today(context.Background())
+	res, err := core.Tick(context.Background())
 	if err != nil {
 		return nil
 	}
-	return copyWireSuggestions(wire.Suggestions)
-}
-
-func copyWireSuggestions(in []proactivity.WireSuggestion) []Suggestion {
-	out := make([]Suggestion, len(in))
-	for i, w := range in {
-		out[i] = Suggestion{
-			Title:   w.Title,
-			Body:    w.Body,
-			Kind:    w.Kind,
-			Source:  w.Source,
-			Propose: w.Propose,
-			Reason:  w.Reason,
-		}
-	}
-	return out
+	gate := proactivity.FirstGateFrom(res)
+	w := proactivity.ResultToSuggestion(res)
+	return []Suggestion{{
+		Title:   w.Title,
+		Body:    w.Body,
+		Kind:    w.Kind,
+		Source:  w.Source,
+		Propose: gate.Propose,
+		Reason:  gate.Reason,
+	}}
 }
 
 func Format(s Snapshot) string {

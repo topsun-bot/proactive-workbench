@@ -358,7 +358,7 @@ func cmdServe(args []string, stdout, stderr io.Writer) error {
 	fmt.Fprintf(stdout, "proactivity API listening on http://%s (loopback only)\n", addr)
 	fmt.Fprintf(stdout, "memory file: %s\n", store.Path())
 	fmt.Fprintf(stdout, "last-run file: %s\n", lastRun)
-	fmt.Fprintln(stdout, "GET /api/today is the Today alias (bare JSON; see API.md)")
+	fmt.Fprintln(stdout, "GET /v1/today is the core WireToday contract (see API.md)")
 	fmt.Fprintln(stdout, "see internal/proactivity/API.md")
 	srv := &http.Server{
 		Addr:              addr,
