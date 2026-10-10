@@ -141,9 +141,6 @@ func cmdToday(args []string, w io.Writer) error {
 		now = now.In(opts.tz)
 	}
 	wx := opts.weather
-	if wx == weather.Unavailable {
-		wx = weather.Clear
-	}
 	core, err := today.NewServeCore(now, opts.tz, wx)
 	if err != nil {
 		return err

@@ -1,0 +1,59 @@
+name: Smoke Inspection
+
+on:
+  schedule:
+    # 每天早晨工作日（周一至周五 01:00 UTC = 09:00 北京时间）执行巡检
+    - cron: '0 1 * * 1-5'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: smoke-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  smoke:
+    name: Linux Workday Smoke Inspection
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: "1.22.x"
+
+      - name: Unit tests
+        run: go test ./...
+
+      - name: Run smoke selftest
+        run: bash tests/smoke/selftest.sh
+
+      - name: Run smoke inspection (strict)
+        run: PW_SMOKE_STRICT=1 bash tests/smoke/run_smoke.sh
+
+      - name: Package Linux tar.gz
+        run: ./scripts/package-linux.sh
+
+      - name: Assert packaged Linux binary
+        run: |
+          set -euo pipefail
+          ART="dist/proactive-workbench-0.1.0-linux-amd64.tar.gz"
+          test -f "$ART"
+          tmp="$(mktemp -d)"
+          tar -xzf "$ART" -C "$tmp"
+          "$tmp"/proactive-workbench-0.1.0-linux-amd64/workbench version
+          "$tmp"/proactive-workbench-0.1.0-linux-amd64/workbench tools
+          "$tmp"/proactive-workbench-0.1.0-linux-amd64/workbench demo --weather=rain
+
+      - name: Upload smoke logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: smoke-inspection-logs
+          path: tests/smoke/.logs/
+          retention-days: 14
