@@ -1,6 +1,10 @@
 package proactivity
 
-import "fmt"
+import (
+	"fmt"
+
+	"github.com/topsun-bot/proactive-workbench/internal/memory"
+)
 
 // Policy is the interrupt rule set. Zero value is not valid; use DefaultPolicy.
 type Policy struct {
@@ -21,6 +25,21 @@ func (p Policy) Validate() error {
 		return fmt.Errorf("proactivity: quiet hours must be hours 0–23")
 	}
 	return nil
+}
+
+// WithMemory overlays quiet hours from local memory preferences when set.
+func (p Policy) WithMemory(snap memory.Snapshot) Policy {
+	start, end, ok := snap.QuietHours()
+	if !ok {
+		return p
+	}
+	if start >= 0 {
+		p.QuietStart = start
+	}
+	if end >= 0 {
+		p.QuietEnd = end
+	}
+	return p
 }
 
 func (p Policy) InQuietHours(hour int) bool {

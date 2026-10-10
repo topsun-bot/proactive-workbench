@@ -27,7 +27,12 @@ const (
 	ActivityBusy    Activity = "busy"
 )
 
-const FixtureSourceLabel = "FIXTURE situation — not a live location or sensor"
+// MockSourceLabel is stamped on every situation snapshot. Location is
+// fixture-only: no GeoClue, no CoreLocation, no live GPS.
+const MockSourceLabel = "MOCK location — fixture-only, not a live GPS or GeoClue fix"
+
+// FixtureSourceLabel is an alias of MockSourceLabel (kept for existing callers).
+const FixtureSourceLabel = MockSourceLabel
 
 type Snapshot struct {
 	At       time.Time

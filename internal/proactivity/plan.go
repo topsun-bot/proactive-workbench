@@ -27,6 +27,18 @@ func BuildPlan(p Perception, g Goal) Plan {
 				"Do not create a second reminder if the title already exists.",
 			},
 		}
+	case GoalCommitmentNudge:
+		when := g.WindowStart.Format("15:04")
+		if g.WindowStart.IsZero() {
+			when = "soon"
+		}
+		return Plan{
+			Goal: g,
+			Steps: []string{
+				"Surface the remembered commitment before the start time (" + when + ").",
+				"Do not create a calendar event; this is a memory nudge, not a new booking.",
+			},
+		}
 	case GoalNone:
 		return Plan{Goal: g, Steps: []string{"Keep sensing; do not notify."}}
 	default:

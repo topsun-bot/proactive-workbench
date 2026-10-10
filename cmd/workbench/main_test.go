@@ -129,10 +129,9 @@ func TestTodayBriefing(t *testing.T) {
 	for _, want := range []string{
 		"Good morning",
 		"MOCK",
-		"slept little last night",
-		"10am meeting",
 		"Morning walk",
 		"Team standup",
+		"propose=",
 	} {
 		if !strings.Contains(text, want) {
 			t.Fatalf("missing %q\n%s", want, text)

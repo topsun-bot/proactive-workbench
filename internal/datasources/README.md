@@ -4,7 +4,7 @@ Read-only environment feeds for the Linux workbench.
 
 - **Weather:** `weather.Source` — mock fixtures + Open-Meteo adapter (keyless). Tests never hit the network.
 - **Calendar / reminders:** `calendar.Source` — mock + local ICS (recommended Linux path). CalDAV is a documented stub.
-- **Situation:** `situation.Source` — place/activity fixtures (not GPS).
+- **Situation:** `situation.Source` — place/activity fixtures labeled **MOCK** (not GPS, not GeoClue).
 
 Design, API choice, and Linux calendar tradeoffs: [DESIGN.md](DESIGN.md).
 

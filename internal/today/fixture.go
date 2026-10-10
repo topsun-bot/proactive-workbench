@@ -1,8 +1,9 @@
-package memory
+package today
 
-// Store is long-term workbench memory: people, preferences, goals, routines.
-// The default fixture is explicitly MOCK and is not read from a live device.
-type Store struct {
+// LongTerm is the Today UI fixture: people, preferences, goals, routines.
+// It is labeled MOCK and is not read from a live device. Gate-1 propose/reason
+// do not come from this store — those are copied from proactivity.Core.
+type LongTerm struct {
 	SourceLabel string
 	SleepHours  float64
 	SleepNote   string
@@ -45,12 +46,12 @@ type Task struct {
 	Kind   string
 }
 
-const SourceLabel = "MOCK long-term memory (not live data)"
+const FixtureSourceLabel = "MOCK long-term memory (not live data)"
 
-// Fixture is the labeled today.ai-style memory used by briefing and suggestions.
-func Fixture() Store {
-	return Store{
-		SourceLabel: SourceLabel,
+// Fixture is the labeled today.ai-style memory used by the Snapshot briefing.
+func Fixture() LongTerm {
+	return LongTerm{
+		SourceLabel: FixtureSourceLabel,
 		SleepHours:  4.5,
 		SleepNote:   "MOCK sleep last night: 4.5h (poor)",
 		People: []Person{

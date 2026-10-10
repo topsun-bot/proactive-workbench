@@ -3,10 +3,19 @@ package proactivity
 import (
 	"context"
 	"fmt"
+
+	"github.com/topsun-bot/proactive-workbench/internal/memory"
 )
 
 // Tick runs one perceive → goal → plan → decide cycle against the injected sensors.
-func Tick(ctx context.Context, sensors Sensors, policy Policy, mem *Memory) (Result, error) {
+// Memory is empty: preferences default (likes outdoors, policy quiet hours).
+func Tick(ctx context.Context, sensors Sensors, policy Policy, mem *Dedupe) (Result, error) {
+	return TickWithMemory(ctx, sensors, policy, mem, memory.Empty())
+}
+
+// TickWithMemory is Tick plus local long-term memory (preferences, people, goals, commitments).
+func TickWithMemory(ctx context.Context, sensors Sensors, policy Policy, mem *Dedupe, snap memory.Snapshot) (Result, error) {
+	policy = policy.WithMemory(snap)
 	if err := policy.Validate(); err != nil {
 		return Result{}, err
 	}
@@ -17,7 +26,7 @@ func Tick(ctx context.Context, sensors Sensors, policy Policy, mem *Memory) (Res
 	if err != nil {
 		return Result{}, err
 	}
-	g := GenerateGoal(p)
+	g := GenerateGoal(p, snap)
 	plan := BuildPlan(p, g)
 	d := Decide(p, g, policy, mem)
 	if d.Interrupt {

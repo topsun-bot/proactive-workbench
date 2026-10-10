@@ -204,7 +204,7 @@ func TestFormatResultMentionsFixture(t *testing.T) {
 		t.Fatal(err)
 	}
 	text := proactivity.FormatResult(res, 1)
-	for _, want := range []string{"FIXTURE weather", "FIXTURE situation", "visit_park", "Interrupt: YES"} {
+	for _, want := range []string{"FIXTURE weather", "MOCK location", "visit_park", "Interrupt: YES"} {
 		if !strings.Contains(text, want) {
 			t.Fatalf("missing %q\n%s", want, text)
 		}

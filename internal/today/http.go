@@ -8,11 +8,25 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/topsun-bot/proactive-workbench/internal/memory"
+	"github.com/topsun-bot/proactive-workbench/internal/proactivity"
 	"github.com/topsun-bot/proactive-workbench/internal/tools/weather"
 )
 
 func NewMux(now time.Time, loc *time.Location, wx weather.Condition) *http.ServeMux {
+	if loc == nil {
+		loc = time.UTC
+	}
+	core, err := NewServeCore(now, loc, wx)
+	if err != nil {
+		panic(err)
+	}
+	return NewMuxWithCore(now, loc, wx, core)
+}
+
+// NewMuxWithCore is NewMux plus an injectable Core. /api/today is the UI
+// Snapshot. /v1/* is A4's wire contract. The core Handler's bare /api/today
+// alias is not mounted here — that path stays Snapshot-only on workbench serve.
+func NewMuxWithCore(now time.Time, loc *time.Location, wx weather.Condition, core *proactivity.Core) *http.ServeMux {
 	if loc == nil {
 		loc = time.UTC
 	}
@@ -38,12 +52,23 @@ func NewMux(now time.Time, loc *time.Location, wx weather.Condition) *http.Serve
 		if stamp.Location() != loc {
 			stamp = stamp.In(loc)
 		}
-		snap := Build(Input{Now: stamp, Weather: cond}, memory.Fixture())
+		reqCore := core
+		if live || r.URL.Query().Get("now") != "" || r.URL.Query().Get("weather") != "" {
+			built, err := NewServeCore(stamp, loc, cond)
+			if err == nil {
+				reqCore = built
+			}
+		}
+		snap := Build(Input{Now: stamp, Weather: cond, Core: reqCore}, Fixture())
 		w.Header().Set("Content-Type", "application/json")
 		if err := json.NewEncoder(w).Encode(snap); err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 		}
 	})
+	if core != nil {
+		// Mount only /v1/ so A4's Handler /api/today alias never shares this path.
+		mux.Handle("/v1/", proactivity.Handler(core))
+	}
 	sub, err := fs.Sub(webFS, "web")
 	if err != nil {
 		panic(err)

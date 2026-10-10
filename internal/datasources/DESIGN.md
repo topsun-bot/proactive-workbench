@@ -64,7 +64,9 @@ Fixtures under `weather/fixtures/` are **synthetic schema-correct payloads**, no
 
 ## Calendar / reminders on Linux
 
-macOS EventKit does not apply. There is no single “Linux EventKit”.
+**EventKit is not in this Linux package.** Shaoruru implements EventKit in
+`macos/` (PR #5) against `calendar.Source`. There is no EventKit type, no
+fake EventKit stub, and no CGO bridge here. Linux stays on local ICS.
 
 ### Candidates
 
@@ -97,7 +99,13 @@ Reminders: ICS `VALARM` (DISPLAY/AUDIO) attached to `VEVENT`. There is no separa
 
 ## Situation (place / activity)
 
-Linux has no EventKit-style “I’m at home”. Options: user config, `WORKBENCH_PLACE`, or later GeoClue (D-Bus, session). This PR uses a **fixture situation source** (`home` + `idle` by default). Do not invent GPS.
+Location stays **fixture-only**, clearly labeled
+
+`MOCK location — fixture-only, not a live GPS or GeoClue fix`.
+
+Do **not** wire GeoClue, CoreLocation, or any live location API. Default
+fixture is `home` + `idle`. The path is injectable for tests via
+`situation.NewMock`.
 
 ---
 
@@ -107,3 +115,5 @@ Linux has no EventKit-style “I’m at home”. Options: user config, `WORKBENC
 2. `internal/clock` is reused so `--now` / `--tz` stay consistent with `workbench demo`.
 3. A generated `umbrella_reminder` goal is the proactive form of 「明天早上八点提醒带伞」. Executing it should call the existing `internal/flow/umbrella` planner, not a second calendar writer.
 4. Do not put network or file I/O inside `internal/tools/*` — keep plugins thin; inject a `datasources` implementation.
+5. EventKit lives in `macos/` against `calendar.Source`. Do not add an EventKit stub here.
+6. Location stays MOCK. Do not add GeoClue.

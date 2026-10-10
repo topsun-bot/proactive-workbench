@@ -1,19 +1,22 @@
 package today
 
 import (
+	"context"
 	"fmt"
 	"strings"
 	"time"
 
-	"github.com/topsun-bot/proactive-workbench/internal/memory"
+	"github.com/topsun-bot/proactive-workbench/internal/proactivity"
 	"github.com/topsun-bot/proactive-workbench/internal/tools/weather"
 )
 
 type Suggestion struct {
-	Title  string
-	Body   string
-	Kind   string
-	Source string
+	Title   string
+	Body    string
+	Kind    string
+	Source  string
+	Propose bool   `json:"propose"`
+	Reason  string `json:"reason"`
 }
 
 type Signal struct {
@@ -30,11 +33,11 @@ type Snapshot struct {
 	WeatherLine  string
 	WeatherMock  bool
 	SleepLine    string
-	People       []memory.Person
-	Preferences  []memory.Preference
-	Goals        []memory.Goal
-	Tasks        []memory.Task
-	Routines     []memory.Routine
+	People       []Person
+	Preferences  []Preference
+	Goals        []Goal
+	Tasks        []Task
+	Routines     []Routine
 	Signals      []Signal
 	Suggestions  []Suggestion
 	MemorySource string
@@ -43,11 +46,14 @@ type Snapshot struct {
 type Input struct {
 	Now     time.Time
 	Weather weather.Condition
+	// Core is the PR #3 gate-1 source of truth. Suggestions copy propose/reason
+	// from Core.Today — they are not recomputed here.
+	Core *proactivity.Core
 }
 
-func Build(in Input, mem memory.Store) Snapshot {
+func Build(in Input, mem LongTerm) Snapshot {
 	if mem.SourceLabel == "" {
-		mem = memory.Fixture()
+		mem = Fixture()
 	}
 	loc := in.Now.Location()
 	if loc == nil {
@@ -89,7 +95,7 @@ func Build(in Input, mem memory.Store) Snapshot {
 		{Label: "Next meeting", Value: "10:00 standup with Sam", Mock: true},
 		{Label: "People nearby", Value: peopleLine(mem.People), Mock: true},
 	}
-	s.Suggestions = suggestions(mem, wx)
+	s.Suggestions = suggestionsFromCore(in.Core)
 	return s
 }
 
@@ -104,7 +110,7 @@ func greeting(now time.Time) string {
 	}
 }
 
-func peopleLine(people []memory.Person) string {
+func peopleLine(people []Person) string {
 	names := make([]string, 0, len(people))
 	for _, p := range people {
 		names = append(names, p.Name+" ("+p.Relation+")")
@@ -112,33 +118,30 @@ func peopleLine(people []memory.Person) string {
 	return strings.Join(names, ", ")
 }
 
-func suggestions(mem memory.Store, wx weather.Condition) []Suggestion {
-	var out []Suggestion
-	hasWalk := false
-	hasTen := false
-	for _, t := range mem.Tasks {
-		if t.ID == "walk" {
-			hasWalk = true
-		}
-		if t.Hour == 10 {
-			hasTen = true
-		}
+// suggestionsFromCore copies Core.Today suggestions, including propose/reason,
+// without running Decide or any other gate-1 logic in this package.
+func suggestionsFromCore(core *proactivity.Core) []Suggestion {
+	if core == nil {
+		return nil
 	}
-	if mem.SleepHours > 0 && mem.SleepHours < 6 && hasWalk && hasTen {
-		out = append(out, Suggestion{
-			Title:  "Move the walk to evening?",
-			Body:   "You slept little last night and have a 10am meeting, move the walk to evening?",
-			Kind:   "unprompted",
-			Source: memory.SourceLabel,
-		})
+	wire, err := core.Today(context.Background())
+	if err != nil {
+		return nil
 	}
-	if wx == weather.Rain {
-		out = append(out, Suggestion{
-			Title:  "Pack an umbrella",
-			Body:   "MOCK forecast is rain. The 07:30 walk and 10:00 commute will be wet.",
-			Kind:   "weather",
-			Source: weather.SourceLabel,
-		})
+	return copyWireSuggestions(wire.Suggestions)
+}
+
+func copyWireSuggestions(in []proactivity.WireSuggestion) []Suggestion {
+	out := make([]Suggestion, len(in))
+	for i, w := range in {
+		out[i] = Suggestion{
+			Title:   w.Title,
+			Body:    w.Body,
+			Kind:    w.Kind,
+			Source:  w.Source,
+			Propose: w.Propose,
+			Reason:  w.Reason,
+		}
 	}
 	return out
 }
@@ -171,7 +174,7 @@ func Format(s Snapshot) string {
 		fmt.Fprintln(&b, "  - none")
 	}
 	for _, sug := range s.Suggestions {
-		fmt.Fprintf(&b, "  - %s — %s [%s]\n", sug.Title, sug.Body, sug.Source)
+		fmt.Fprintf(&b, "  - %s — %s [%s] propose=%v reason=%s\n", sug.Title, sug.Body, sug.Source, sug.Propose, sug.Reason)
 	}
 	return b.String()
 }

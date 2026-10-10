@@ -76,8 +76,9 @@ jobs:
             --tz=Asia/Shanghai \
             --now=2026-10-10T07:15:00+08:00)"
           printf '%s\n' "$out"
-          echo "$out" | grep -q "slept little last night"
-          echo "$out" | grep -q "10am meeting"
+          echo "$out" | grep -q "Good morning"
+          echo "$out" | grep -q "Morning walk"
+          echo "$out" | grep -q "propose="
           echo "$out" | grep -q "MOCK"
 
       - name: Run proactivity tick (park, then dedupe)

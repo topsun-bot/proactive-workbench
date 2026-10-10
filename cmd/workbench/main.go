@@ -16,7 +16,6 @@ import (
 
 	"github.com/topsun-bot/proactive-workbench/internal/clock"
 	"github.com/topsun-bot/proactive-workbench/internal/flow/umbrella"
-	"github.com/topsun-bot/proactive-workbench/internal/memory"
 	"github.com/topsun-bot/proactive-workbench/internal/planner"
 	"github.com/topsun-bot/proactive-workbench/internal/today"
 	"github.com/topsun-bot/proactive-workbench/internal/tool"
@@ -145,7 +144,11 @@ func cmdToday(args []string, w io.Writer) error {
 	if wx == weather.Unavailable {
 		wx = weather.Clear
 	}
-	fmt.Fprint(w, today.Format(today.Build(today.Input{Now: now, Weather: wx}, memory.Fixture())))
+	core, err := today.NewServeCore(now, opts.tz, wx)
+	if err != nil {
+		return err
+	}
+	fmt.Fprint(w, today.Format(today.Build(today.Input{Now: now, Weather: wx, Core: core}, today.Fixture())))
 	return nil
 }
 
