@@ -65,6 +65,25 @@ jobs:
           echo "$out" | grep -q "Reminders created"
           echo "$out" | grep -q "天气暂时查不到"
 
+      # A4 hook: proactivity tick/brief use fixture sources only (no network).
+      - name: Run proactivity tick (park, then dedupe)
+        run: |
+          set -euo pipefail
+          go run ./cmd/proactivity tick \
+            --weather=clear \
+            --tz=Asia/Shanghai \
+            --now=2026-10-10T15:00:00+08:00 \
+            --repeat=2
+
+      - name: Run proactivity morning brief (fixtures)
+        run: |
+          set -euo pipefail
+          go run ./cmd/proactivity brief \
+            --weather=clear \
+            --tz=Asia/Shanghai \
+            --now=2026-10-10T08:00:00+08:00 \
+            --memory-fixture
+
       - name: Package Linux tar.gz
         run: ./scripts/package-linux.sh
 
@@ -89,6 +108,9 @@ jobs:
           # Checksum must name the tarball, not an absolute runner path.
           grep -qv '/' dist/proactive-workbench-0.1.0-linux-amd64.tar.gz.sha256
           (cd dist && sha256sum -c proactive-workbench-0.1.0-linux-amd64.tar.gz.sha256)
+          "$tmp"/proactive-workbench-0.1.0-linux-amd64/proactivity tick \
+            --now=2026-10-10T15:00:00+08:00 \
+            --tz=Asia/Shanghai
 
       - name: Upload Linux artifact
         uses: actions/upload-artifact@v4

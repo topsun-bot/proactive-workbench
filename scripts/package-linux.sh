@@ -23,7 +23,12 @@ CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -trimpath \
   -o "$STAGE/workbench" \
   ./cmd/workbench
 
-chmod +x "$STAGE/workbench"
+CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -trimpath \
+  -ldflags "-s -w" \
+  -o "$STAGE/proactivity" \
+  ./cmd/proactivity
+
+chmod +x "$STAGE/workbench" "$STAGE/proactivity"
 
 cat > "$STAGE/README.txt" <<EOF
 Proactive Workbench ${VERSION} (${COMMIT})
@@ -38,6 +43,13 @@ Run the cross-tool demo (weather is MOCK):
 List plugins:
 
   ./workbench tools
+
+Proactivity against FIXTURE sources (no network):
+
+  ./proactivity tick --now=2026-10-10T15:00:00+08:00 --repeat=2
+  ./proactivity brief --memory-fixture --now=2026-10-10T08:00:00+08:00
+  ./proactivity tick --json
+  ./proactivity serve --listen=127.0.0.1:8741 --memory-fixture
 EOF
 
 echo "==> archive"
