@@ -53,6 +53,25 @@ type Decision struct {
 	Score       int
 }
 
+// FirstGate is the single source of truth for Snapshot.propose / Snapshot.reason.
+// Shaoruru’s /api/today encoder must copy these fields and must not recompute
+// quiet hours, score, or dedupe. Call FirstGateFrom after Core.Tick.
+type FirstGate struct {
+	Propose bool   `json:"propose"`
+	Reason  string `json:"reason"`
+}
+
+// FirstGate returns the first-gate fields for a Snapshot suggestion.
+func (d Decision) FirstGate() FirstGate {
+	return FirstGate{Propose: d.Propose, Reason: d.Reason}
+}
+
+// FirstGateFrom is the exported hook for the workbench /api/today Snapshot
+// encoder: gate := proactivity.FirstGateFrom(result).
+func FirstGateFrom(r Result) FirstGate {
+	return r.Decision.FirstGate()
+}
+
 type Result struct {
 	Perception Perception
 	Goal       Goal

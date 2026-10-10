@@ -41,12 +41,7 @@ func Handler(core *Core) http.Handler {
 		writeOK(w, ResultToWire(res))
 	})
 	mux.HandleFunc("/v1/today", func(w http.ResponseWriter, r *http.Request) {
-		handleToday(core, w, r, true)
-	})
-	// Alias for Shaoruru’s Mac client (PR #5). Bare JSON — no envelope —
-	// so NotificationGate can read suggestions[] at the document root.
-	mux.HandleFunc("/api/today", func(w http.ResponseWriter, r *http.Request) {
-		handleToday(core, w, r, false)
+		handleToday(core, w, r)
 	})
 	mux.HandleFunc("/v1/brief", func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodGet {
@@ -162,7 +157,7 @@ func Handler(core *Core) http.Handler {
 	})
 }
 
-func handleToday(core *Core, w http.ResponseWriter, r *http.Request, envelope bool) {
+func handleToday(core *Core, w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
 		writeErr(w, http.StatusMethodNotAllowed, "method not allowed")
 		return
@@ -172,12 +167,7 @@ func handleToday(core *Core, w http.ResponseWriter, r *http.Request, envelope bo
 		writeErr(w, http.StatusInternalServerError, err.Error())
 		return
 	}
-	if envelope {
-		writeOK(w, doc)
-		return
-	}
-	w.Header().Set("Content-Type", "application/json")
-	_ = json.NewEncoder(w).Encode(doc)
+	writeOK(w, doc)
 }
 
 func handleUpsert(core *Core, w http.ResponseWriter, r *http.Request, apply func(*memory.Snapshot, []byte) error) {

@@ -2,6 +2,7 @@ package proactivity_test
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"io"
 	"net/http"
@@ -162,23 +163,24 @@ func TestContractHealthTickBriefMemoryRoutines(t *testing.T) {
 	}
 }
 
-func TestContractAPITodayProposeReason(t *testing.T) {
-	h := proactivity.Handler(testCore(t))
+func TestContractV1TodayProposeReason(t *testing.T) {
+	core := testCore(t)
+	h := proactivity.Handler(core)
 
 	rec := httptest.NewRecorder()
 	h.ServeHTTP(rec, loopbackReq(http.MethodGet, "/api/today", nil))
-	if rec.Code != 200 {
-		t.Fatalf("code %d body %s", rec.Code, rec.Body.String())
+	if rec.Code != http.StatusNotFound {
+		t.Fatalf("/api/today must not be registered on the core handler (workbench owns it), got %d %s", rec.Code, rec.Body.String())
 	}
-	var raw map[string]json.RawMessage
-	if err := json.Unmarshal(rec.Body.Bytes(), &raw); err != nil {
-		t.Fatal(err)
-	}
-	if _, wrapped := raw["ok"]; wrapped {
-		t.Fatalf("/api/today must be bare JSON, not an envelope: %s", rec.Body.String())
+
+	rec = httptest.NewRecorder()
+	h.ServeHTTP(rec, loopbackReq(http.MethodGet, "/v1/today", nil))
+	ok, _, data := decodeEnvelope(t, rec)
+	if rec.Code != 200 || !ok {
+		t.Fatalf("/v1/today %d %s", rec.Code, rec.Body.String())
 	}
 	var today proactivity.WireToday
-	if err := json.Unmarshal(rec.Body.Bytes(), &today); err != nil {
+	if err := json.Unmarshal(data, &today); err != nil {
 		t.Fatal(err)
 	}
 	if len(today.Suggestions) != 1 {
@@ -195,18 +197,20 @@ func TestContractAPITodayProposeReason(t *testing.T) {
 		t.Fatalf("location must be labeled MOCK: %q", today.LocationSource)
 	}
 
-	rec = httptest.NewRecorder()
-	proactivity.Handler(testCore(t)).ServeHTTP(rec, loopbackReq(http.MethodGet, "/v1/today", nil))
-	ok, _, data := decodeEnvelope(t, rec)
-	if !ok {
-		t.Fatal(rec.Body.String())
-	}
-	var enveloped proactivity.WireToday
-	if err := json.Unmarshal(data, &enveloped); err != nil {
+	res, err := testCore(t).Tick(context.Background())
+	if err != nil {
 		t.Fatal(err)
 	}
-	if len(enveloped.Suggestions) != 1 || !enveloped.Suggestions[0].Propose || enveloped.Suggestions[0].Reason == "" {
-		t.Fatalf("/v1/today %#v", enveloped.Suggestions)
+	gate := proactivity.FirstGateFrom(res)
+	if gate.Propose != true || gate.Reason == "" {
+		t.Fatalf("FirstGateFrom %#v", gate)
+	}
+	if gate != res.Decision.FirstGate() {
+		t.Fatal("FirstGateFrom must match Decision.FirstGate")
+	}
+	wired := proactivity.ResultToSuggestion(res)
+	if wired.Propose != gate.Propose || wired.Reason != gate.Reason {
+		t.Fatalf("ResultToSuggestion must copy FirstGate: %#v vs %#v", wired, gate)
 	}
 }
 
@@ -234,9 +238,13 @@ func TestContractTodayQuietHoursProposeFalse(t *testing.T) {
 	}
 	h := proactivity.Handler(core)
 	rec := httptest.NewRecorder()
-	h.ServeHTTP(rec, loopbackReq(http.MethodGet, "/api/today", nil))
+	h.ServeHTTP(rec, loopbackReq(http.MethodGet, "/v1/today", nil))
+	ok, _, data := decodeEnvelope(t, rec)
+	if !ok {
+		t.Fatal(rec.Body.String())
+	}
 	var today proactivity.WireToday
-	if err := json.Unmarshal(rec.Body.Bytes(), &today); err != nil {
+	if err := json.Unmarshal(data, &today); err != nil {
 		t.Fatal(err)
 	}
 	if len(today.Suggestions) != 1 {

@@ -21,15 +21,19 @@ against `calendar.Source` in `macos/`. There is no fake EventKit stub here.
 | **127.0.0.1 HTTP/JSON** | Language-neutral, `URLSession` on macOS, curl on Linux |
 
 **Chosen boundary:** localhost HTTP/JSON (`application/json`) bound to
-`127.0.0.1` only (default port `8741`). The Mac UI talks HTTP only — do
-not call `proactivity.Core` from ObjC/Swift. Keep `Core` as the in-process
-implementation *behind* `proactivity serve`.
+`127.0.0.1` only (default port `8741`). There is **one** production
+service: `workbench serve`. The Mac UI talks HTTP only — do not call
+`proactivity.Core` from ObjC/Swift. Keep `Core` as the in-process
+implementation *behind* that server.
 
-The same payloads are also emitted by `proactivity tick --json` and
+`proactivity serve` is a standalone debug host for `/v1/*` only. It does
+**not** register `/api/today` (that path belongs to the workbench UI).
+
+The same `/v1` payloads are also emitted by `proactivity tick --json` and
 `proactivity brief --json`.
 
 The stable Go API is `proactivity.Core` (`Tick`, `Today`, `Brief`,
-`Memory`, `UpdateMemory`, `Routines`, `RunDue`).
+`Memory`, `UpdateMemory`, `Routines`, `RunDue`) plus `FirstGateFrom`.
 
 ## Envelope
 
@@ -40,24 +44,19 @@ Every `/v1/*` HTTP response and `--json` document:
 {"ok": false, "error": "human-readable message"}
 ```
 
-`GET /api/today` is the exception: it returns the Today object **bare**
-(no `{ok,data}` wrapper) so Shaoruru’s `NotificationGate` can read
-`suggestions[]` at the document root. `GET /v1/today` wraps the same
-object in the envelope.
-
 `api` version is `1` (`GET /v1/health`). Additive fields are allowed;
 renaming or removing a field is a breaking change.
 
-## Route mapping (Shaoruru `/api/today`)
+## Route mapping (single service: `workbench serve` on `:8741`)
 
-| Client path | This server | Notes |
-|-------------|-------------|--------|
-| `GET /api/today` | **`GET /api/today`** (alias, added) | Bare `WireToday`. `suggestions[]` each have `propose` (bool) and `reason` (string). |
-| — | `GET /v1/today` | Same `WireToday` inside the envelope. |
-| — | `POST /v1/tick` | One sense cycle. Also includes `propose` and `reason` on the tick object. |
+| Path | Owner | Body |
+|------|--------|------|
+| `GET /api/today` | **Workbench / macOS UI** (PR #5 `internal/today`) | UI `Snapshot`. Not registered by this package. |
+| `GET /v1/today` | **This core** | Envelope wrapping `WireToday`. `data.suggestions[]` each have `propose` and `reason`. |
+| `POST /v1/tick` | **This core** | Envelope wrapping `WireTick` (also has `propose` / `reason`). |
 
-`POST /v1/tick` is **not** an alias of `/api/today` (different method and
-shape). The Mac client should keep calling `GET /api/today`.
+`/api/today` is **not** an alias of `/v1/today`. The UI encoder must copy
+`propose` / `reason` from the core first gate — see **Snapshot first-gate hook**.
 
 ## Endpoints
 
@@ -66,7 +65,6 @@ shape). The Mac client should keep calling `GET /api/today`.
 | GET | `/v1/health` | — | `{service, api, bound}` |
 | POST | `/v1/tick` | empty | `WireTick` (includes `propose`, `reason`) |
 | GET | `/v1/today` | — | `WireToday` (envelope) |
-| GET | `/api/today` | — | `WireToday` **bare** (no envelope) |
 | GET | `/v1/brief` | — | `Brief` |
 | GET | `/v1/memory` | — | `memory.Snapshot` |
 | POST | `/v1/memory/commitments` | `Commitment` | snapshot |
@@ -88,8 +86,10 @@ Listen addresses other than `127.0.0.1` / `localhost` / `::1` are rejected.
 These two fields are named **exactly** `propose` (bool) and `reason`
 (string). They live on:
 
-1. each object in `suggestions[]` from `GET /api/today` and `GET /v1/today`
+1. each object in `data.suggestions[]` from `GET /v1/today`
 2. the `WireTick` object from `POST /v1/tick` (and `proactivity tick --json`)
+3. the UI `Snapshot` suggestion objects from `GET /api/today` — **copied**
+   from this core, never recomputed
 
 `propose` is the core’s first notify gate (quiet hours, min score, dedupe,
 no actionable goal). It is **not** a final “show a banner” decision.
@@ -100,6 +100,26 @@ Focus-mode.
 
 `interrupt` on `WireTick` is a legacy alias of `propose` for existing CLI
 tests. Prefer `propose`.
+
+## Snapshot first-gate hook
+
+`workbench serve` owns `GET /api/today` and returns Shaoruru’s `Snapshot`.
+That encoder must take `propose` / `reason` from this core’s first gate
+(single source of truth). Do not run a second quiet-hours / score / dedupe
+check in the UI package.
+
+Exported hook (call after `Core.Tick`):
+
+```go
+res, err := core.Tick(ctx)
+gate := proactivity.FirstGateFrom(res) // or res.Decision.FirstGate()
+// copy onto the Snapshot suggestion that matches res.Goal:
+//   suggestion.Propose = gate.Propose
+//   suggestion.Reason  = gate.Reason
+```
+
+`FirstGate` is `{propose bool, reason string}`. `ResultToSuggestion` and
+`GET /v1/today` already go through `FirstGateFrom`.
 
 ## `WireToday` / `suggestions[]`
 

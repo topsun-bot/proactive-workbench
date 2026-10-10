@@ -50,8 +50,8 @@ func NewCoreWithLastRun(sensors Sensors, policy Policy, store memory.Store, last
 	}, nil
 }
 
-// Today is one sense cycle plus the Today view Shaoruru’s client loads
-// from GET /api/today. Each suggestions[] item carries propose + reason.
+// Today is one sense cycle plus the WireToday contract for GET /v1/today.
+// Each suggestions[] item carries FirstGateFrom (propose + reason).
 func (c *Core) Today(ctx context.Context) (WireToday, error) {
 	res, err := c.Tick(ctx)
 	if err != nil {
