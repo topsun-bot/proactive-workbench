@@ -4,6 +4,9 @@ import (
 	"bytes"
 	"strings"
 	"testing"
+	"time"
+
+	"github.com/topsun-bot/proactive-workbench/internal/tools/weather"
 )
 
 func TestDemoRainShowsMockAndCreatesReminders(t *testing.T) {
@@ -111,6 +114,31 @@ func TestPlanEnglishPhrase(t *testing.T) {
 	}
 }
 
+func TestTodayBriefing(t *testing.T) {
+	var out bytes.Buffer
+	err := run([]string{
+		"today",
+		"--weather=clear",
+		"--tz=Asia/Shanghai",
+		"--now=2026-10-10T07:15:00+08:00",
+	}, &out, &out)
+	if err != nil {
+		t.Fatal(err)
+	}
+	text := out.String()
+	for _, want := range []string{
+		"Good morning",
+		"MOCK",
+		"Morning walk",
+		"Team standup",
+		"propose=",
+	} {
+		if !strings.Contains(text, want) {
+			t.Fatalf("missing %q\n%s", want, text)
+		}
+	}
+}
+
 func TestUnknownCommand(t *testing.T) {
 	if err := run([]string{"explode"}, &bytes.Buffer{}, &bytes.Buffer{}); err == nil {
 		t.Fatal("expected error")
@@ -150,6 +178,76 @@ func TestPlanRejectsEightPM(t *testing.T) {
 	}, &out, &out)
 	if err == nil {
 		t.Fatalf("expected unrecognized goal, got\n%s", out.String())
+	}
+}
+
+func TestServeDefaultsToLiveClockAndNoMockWeather(t *testing.T) {
+	t.Setenv("PW_DEBUG_FIXTURE", "")
+	t.Setenv("PW_DEBUG_NOW", "")
+	t.Setenv("PW_DEBUG_WEATHER", "")
+	opts, err := parseServeArgs(nil, &bytes.Buffer{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if opts.addr != "127.0.0.1:8741" {
+		t.Fatalf("addr = %q", opts.addr)
+	}
+	if !opts.now.IsZero() {
+		t.Fatalf("default now must be live, got %s", opts.now)
+	}
+	if opts.weatherSet || opts.weather != "" {
+		t.Fatalf("default must not inject MOCK weather, got %+v", opts)
+	}
+	if opts.debugOn {
+		t.Fatal("debug fixture must be off by default")
+	}
+}
+
+func TestServeDebugFixtureFlag(t *testing.T) {
+	t.Setenv("PW_DEBUG_FIXTURE", "")
+	t.Setenv("PW_DEBUG_NOW", "")
+	t.Setenv("PW_DEBUG_WEATHER", "")
+	opts, err := parseServeArgs([]string{"--debug-fixture"}, &bytes.Buffer{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !opts.debugOn {
+		t.Fatal("expected debug on")
+	}
+	if opts.now.Format(time.RFC3339) != "2026-10-10T07:15:00+08:00" {
+		t.Fatalf("fixture now = %s", opts.now.Format(time.RFC3339))
+	}
+	if opts.weather != weather.Clear || !opts.weatherSet {
+		t.Fatalf("fixture weather = %q", opts.weather)
+	}
+}
+
+func TestServeDebugEnv(t *testing.T) {
+	t.Setenv("PW_DEBUG_FIXTURE", "1")
+	t.Setenv("PW_DEBUG_NOW", "2026-10-11T09:00:00+08:00")
+	t.Setenv("PW_DEBUG_WEATHER", "rain")
+	opts, err := parseServeArgs(nil, &bytes.Buffer{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if opts.now.Format(time.RFC3339) != "2026-10-11T09:00:00+08:00" {
+		t.Fatalf("env now = %s", opts.now.Format(time.RFC3339))
+	}
+	if opts.weather != weather.Rain {
+		t.Fatalf("env weather = %q", opts.weather)
+	}
+}
+
+func TestServeHelpIsSuccess(t *testing.T) {
+	var out bytes.Buffer
+	if err := run([]string{"serve", "--help"}, &out, &out); err != nil {
+		t.Fatalf("serve --help should exit 0: %v\n%s", err, out.String())
+	}
+	if !strings.Contains(out.String(), "127.0.0.1:8741") {
+		t.Fatalf("help should mention default port\n%s", out.String())
+	}
+	if !strings.Contains(out.String(), "PW_DEBUG_FIXTURE") {
+		t.Fatalf("help should document debug env\n%s", out.String())
 	}
 }
 

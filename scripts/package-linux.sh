@@ -32,13 +32,18 @@ chmod +x "$STAGE/workbench" "$STAGE/proactivity"
 
 cat > "$STAGE/README.txt" <<EOF
 Proactive Workbench ${VERSION} (${COMMIT})
-Linux amd64 CLI — no GUI, no macOS, no signing.
+Linux amd64 CLI — shared Go core. Mac UI is a separate unsigned DMG.
 
-Run the cross-tool demo (weather is MOCK):
+Run the cross-tool demo (weather is MOCK; clear still creates reminders):
 
   ./workbench demo
   ./workbench demo --weather=clear
   ./workbench plan "bring an umbrella tomorrow 8am" --weather=rain
+  ./workbench today --now=2026-10-10T07:15:00+08:00
+
+One proactivity tick against FIXTURE sources (no network):
+
+  ./proactivity tick --now=2026-10-10T15:00:00+08:00 --repeat=2
 
 List plugins:
 

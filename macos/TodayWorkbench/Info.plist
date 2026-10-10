@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>CFBundleName</key>
+  <string>Today Workbench</string>
+  <key>CFBundleDisplayName</key>
+  <string>Today Workbench</string>
+  <key>CFBundleIdentifier</key>
+  <string>bot.topsun.proactive-workbench.today</string>
+  <key>CFBundleVersion</key>
+  <string>0.1.0</string>
+  <key>CFBundleShortVersionString</key>
+  <string>0.1.0</string>
+  <key>CFBundleExecutable</key>
+  <string>TodayWorkbench</string>
+  <key>CFBundlePackageType</key>
+  <string>APPL</string>
+  <key>LSMinimumSystemVersion</key>
+  <string>13.0</string>
+  <key>NSHighResolutionCapable</key>
+  <true/>
+  <key>NSCalendarsUsageDescription</key>
+  <string>Today Workbench reads your calendar so today’s events can feed the shared calendar.Source used by the Go core. Access is optional; if you decline, the app keeps the MOCK schedule.</string>
+  <key>NSCalendarsFullAccessUsageDescription</key>
+  <string>Today Workbench reads your calendar so today’s events can feed the shared calendar.Source used by the Go core. Access is optional; if you decline, the app keeps the MOCK schedule.</string>
+  <key>NSFocusStatusUsageDescription</key>
+  <string>Today Workbench checks Focus / Do Not Disturb so it never shows a proactive banner while Focus is on.</string>
+</dict>
+</plist>

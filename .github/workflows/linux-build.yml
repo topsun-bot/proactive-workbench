@@ -1,4 +1,4 @@
-name: Linux build
+name: CI
 
 on:
   push:
@@ -8,11 +8,11 @@ permissions:
   contents: read
 
 concurrency:
-  group: linux-build-${{ github.workflow }}-${{ github.ref }}
+  group: ci-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
-  build:
+  linux:
     name: Test, demo, package tar.gz
     runs-on: ubuntu-latest
     timeout-minutes: 15
@@ -27,6 +27,9 @@ jobs:
 
       - name: Unit tests
         run: go test ./...
+
+      - name: Mac client gate + EventKit-denied tests
+        run: ./macos/test.sh
 
       - name: Run umbrella demo (rain → calendar + alarm)
         run: |
@@ -64,6 +67,19 @@ jobs:
           printf '%s\n' "$out"
           echo "$out" | grep -q "Reminders created"
           echo "$out" | grep -q "天气暂时查不到"
+
+      - name: Run today briefing
+        run: |
+          set -euo pipefail
+          out="$(go run ./cmd/workbench today \
+            --weather=clear \
+            --tz=Asia/Shanghai \
+            --now=2026-10-10T07:15:00+08:00)"
+          printf '%s\n' "$out"
+          echo "$out" | grep -q "Good morning"
+          echo "$out" | grep -q "Morning walk"
+          echo "$out" | grep -q "propose="
+          echo "$out" | grep -q "MOCK"
 
       # A4 hook: proactivity tick/brief use fixture sources only (no network).
       - name: Run proactivity tick (park, then dedupe)
@@ -105,6 +121,8 @@ jobs:
           tar -xzf "$ART" -C "$tmp"
           "$tmp"/proactive-workbench-0.1.0-linux-amd64/workbench version
           "$tmp"/proactive-workbench-0.1.0-linux-amd64/workbench tools
+          "$tmp"/proactive-workbench-0.1.0-linux-amd64/workbench today \
+            --now=2026-10-10T07:15:00+08:00 --tz=Asia/Shanghai
           # Checksum must name the tarball, not an absolute runner path.
           grep -qv '/' dist/proactive-workbench-0.1.0-linux-amd64.tar.gz.sha256
           (cd dist && sha256sum -c proactive-workbench-0.1.0-linux-amd64.tar.gz.sha256)
@@ -119,5 +137,56 @@ jobs:
           path: |
             dist/proactive-workbench-0.1.0-linux-amd64.tar.gz
             dist/proactive-workbench-0.1.0-linux-amd64.tar.gz.sha256
+          if-no-files-found: error
+          retention-days: 30
+
+  macos:
+    name: Test, package unsigned DMG
+    runs-on: macos-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          # 1.22 test binaries abort on current macos-latest (dyld missing LC_UUID).
+          go-version: "1.23.x"
+
+      - name: Unit tests
+        run: go test ./...
+
+      - name: Mac client gate + EventKit-denied tests
+        run: ./macos/test.sh
+
+      - name: Package unsigned DMG
+        run: ./scripts/package-macos.sh
+
+      - name: Assert DMG
+        run: |
+          set -euo pipefail
+          ART="dist/proactive-workbench-0.1.0-darwin-unsigned.dmg"
+          test -f "$ART"
+          ls -lh "$ART"
+          SIZE="$(stat -f %z "$ART")"
+          echo "artifact_bytes=$SIZE"
+          if [ "$SIZE" -lt 10000 ]; then
+            echo "error: DMG is unexpectedly small (${SIZE} bytes)" >&2
+            exit 1
+          fi
+          test -x "dist/Today Workbench.app/Contents/MacOS/workbench"
+          test -x "dist/Today Workbench.app/Contents/MacOS/TodayWorkbench"
+          "dist/Today Workbench.app/Contents/MacOS/workbench" version
+          "dist/Today Workbench.app/Contents/MacOS/workbench" today \
+            --now=2026-10-10T07:15:00+08:00 --tz=Asia/Shanghai
+
+      - name: Upload unsigned DMG
+        uses: actions/upload-artifact@v4
+        with:
+          name: proactive-workbench-0.1.0-darwin-unsigned.dmg
+          path: |
+            dist/proactive-workbench-0.1.0-darwin-unsigned.dmg
+            dist/proactive-workbench-0.1.0-darwin-unsigned.dmg.sha256
           if-no-files-found: error
           retention-days: 30

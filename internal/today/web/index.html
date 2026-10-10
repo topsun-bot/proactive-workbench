@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Today — Proactive Workbench</title>
+  <link rel="stylesheet" href="/styles.css" />
+</head>
+<body>
+  <div class="shell">
+    <header class="top">
+      <div>
+        <p class="eyebrow">Proactive Workbench</p>
+        <h1 id="greeting">Today</h1>
+        <p id="date" class="date"></p>
+      </div>
+      <span class="pill">MOCK data</span>
+    </header>
+
+    <section class="briefing card" id="briefing"></section>
+
+    <section>
+      <h2>Today’s tasks</h2>
+      <div class="tasks" id="tasks"></div>
+    </section>
+
+    <div class="split">
+      <section>
+        <h2>Signals</h2>
+        <div class="signals" id="signals"></div>
+      </section>
+      <section>
+        <h2>Routines</h2>
+        <ul class="routines" id="routines"></ul>
+      </section>
+    </div>
+
+    <section>
+      <h2>Proactive suggestions</h2>
+      <div class="suggestions" id="suggestions"></div>
+    </section>
+  </div>
+  <script src="/app.js"></script>
+</body>
+</html>
