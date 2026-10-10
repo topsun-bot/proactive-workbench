@@ -130,4 +130,4 @@ go test ./...
 
 - On main since 2026-10-10: PR #1, #2, #3, #5. TODO rows 2–7 and 15–17 are done.
 - Still needs a person at the Mac (TODO 9): native window, calendar permission allow / deny, banner with Focus on / off.
-- Not wired yet: live Open-Meteo, a real ICS / CalDAV calendar on Linux, real location. Smoke tests in `tests/smoke/` still need wiring to the product entry points (TODO 12).
+- Not wired yet: live Open-Meteo, a real ICS / CalDAV calendar on Linux, real location. Smoke tests in `tests/smoke/` and workday inspection workflow are wired and verified (TODO 12 done).
