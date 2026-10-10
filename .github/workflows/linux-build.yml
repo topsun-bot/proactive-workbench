@@ -31,18 +31,39 @@ jobs:
       - name: Run umbrella demo (rain → calendar + alarm)
         run: |
           set -euo pipefail
-          go run ./cmd/workbench demo \
+          out="$(go run ./cmd/workbench demo \
             --weather=rain \
             --tz=Asia/Shanghai \
-            --now=2026-10-09T13:00:00+08:00
+            --now=2026-10-09T13:00:00+08:00)"
+          printf '%s\n' "$out"
+          echo "$out" | grep -q "Reminders created"
+          echo "$out" | grep -q "今天可能下雨"
+          echo "$out" | grep -q "降水概率 80%"
 
-      - name: Run umbrella demo (clear → skip reminders)
+      - name: Run umbrella demo (clear → still create reminders)
         run: |
           set -euo pipefail
-          go run ./cmd/workbench demo \
+          out="$(go run ./cmd/workbench demo \
             --weather=clear \
             --tz=Asia/Shanghai \
-            --now=2026-10-09T13:00:00+08:00
+            --now=2026-10-09T13:00:00+08:00)"
+          printf '%s\n' "$out"
+          echo "$out" | grep -q "Reminders created"
+          echo "$out" | grep -q "Outcome:  no_rain"
+          echo "$out" | grep -q "今天降水概率 5%"
+          echo "$out" | grep -q "带不带你定"
+          echo "$out" | grep -q "MOCK weather (not live data)"
+
+      - name: Run umbrella demo (unavailable weather → still remind)
+        run: |
+          set -euo pipefail
+          out="$(go run ./cmd/workbench demo \
+            --weather=unavailable \
+            --tz=Asia/Shanghai \
+            --now=2026-10-09T13:00:00+08:00)"
+          printf '%s\n' "$out"
+          echo "$out" | grep -q "Reminders created"
+          echo "$out" | grep -q "天气暂时查不到"
 
       - name: Package Linux tar.gz
         run: ./scripts/package-linux.sh
@@ -65,6 +86,9 @@ jobs:
           tar -xzf "$ART" -C "$tmp"
           "$tmp"/proactive-workbench-0.1.0-linux-amd64/workbench version
           "$tmp"/proactive-workbench-0.1.0-linux-amd64/workbench tools
+          # Checksum must name the tarball, not an absolute runner path.
+          grep -qv '/' dist/proactive-workbench-0.1.0-linux-amd64.tar.gz.sha256
+          (cd dist && sha256sum -c proactive-workbench-0.1.0-linux-amd64.tar.gz.sha256)
 
       - name: Upload Linux artifact
         uses: actions/upload-artifact@v4

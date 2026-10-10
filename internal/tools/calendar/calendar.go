@@ -46,6 +46,18 @@ func (t *Tool) Events() []Event {
 	return out
 }
 
+func (t *Tool) Delete(id string) bool {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	for i, ev := range t.events {
+		if ev.ID == id {
+			t.events = append(t.events[:i], t.events[i+1:]...)
+			return true
+		}
+	}
+	return false
+}
+
 func (t *Tool) Create(title string, start time.Time, notes, flow string) Event {
 	t.mu.Lock()
 	defer t.mu.Unlock()
@@ -72,18 +84,34 @@ func (t *Tool) Handle(req tool.Request) (tool.Result, error) {
 		if err != nil {
 			return tool.Result{}, tool.InvalidPayload("start must be RFC3339")
 		}
-		ev := t.Create(title, start, payload(req, "notes"), payload(req, "createdByFlow"))
-		if ev.CreatedByFlow == "" {
-			ev.CreatedByFlow = "plugin"
+		flow := payload(req, "createdByFlow")
+		if flow == "" {
+			flow = "plugin"
 		}
+		ev := t.Create(title, start, payload(req, "notes"), flow)
 		return tool.Result{
 			Success: true,
 			Summary: "Created calendar event “" + ev.Title + "”",
 			Data: map[string]string{
-				"id":    ev.ID,
-				"title": ev.Title,
-				"start": ev.Start.Format(time.RFC3339),
+				"id":            ev.ID,
+				"title":         ev.Title,
+				"start":         ev.Start.Format(time.RFC3339),
+				"notes":         ev.Notes,
+				"createdByFlow": ev.CreatedByFlow,
 			},
+		}, nil
+	case "deleteEvent":
+		id := payload(req, "id")
+		if id == "" {
+			return tool.Result{}, tool.InvalidPayload("id is required")
+		}
+		if !t.Delete(id) {
+			return tool.Result{Success: false, Summary: "calendar event not found"}, nil
+		}
+		return tool.Result{
+			Success: true,
+			Summary: "Deleted calendar event " + id,
+			Data:    map[string]string{"id": id},
 		}, nil
 	case "listEvents":
 		events := t.Events()
@@ -95,6 +123,27 @@ func (t *Tool) Handle(req tool.Request) (tool.Result, error) {
 	default:
 		return tool.Result{}, tool.Unsupported(req.Action)
 	}
+}
+
+// EventFromResult rebuilds an Event from a plugin Handle("createEvent") result.
+func EventFromResult(res tool.Result) (Event, error) {
+	if !res.Success {
+		return Event{}, tool.InvalidPayload("createEvent plugin reported failure")
+	}
+	if res.Data == nil || res.Data["id"] == "" || res.Data["title"] == "" {
+		return Event{}, tool.InvalidPayload("createEvent result is incomplete")
+	}
+	start, err := time.Parse(time.RFC3339, res.Data["start"])
+	if err != nil {
+		return Event{}, tool.InvalidPayload("createEvent result start must be RFC3339")
+	}
+	return Event{
+		ID:            res.Data["id"],
+		Title:         res.Data["title"],
+		Start:         start,
+		Notes:         res.Data["notes"],
+		CreatedByFlow: res.Data["createdByFlow"],
+	}, nil
 }
 
 func payload(req tool.Request, key string) string {

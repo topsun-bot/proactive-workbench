@@ -3,6 +3,10 @@ package clock
 import (
 	"fmt"
 	"time"
+
+	// Embed IANA zoneinfo so the static linux/amd64 binary can load
+	// Asia/Shanghai (and other zones) without /usr/share/zoneinfo.
+	_ "time/tzdata"
 )
 
 // Clock is injectable so "tomorrow 08:00" is deterministic in tests.
