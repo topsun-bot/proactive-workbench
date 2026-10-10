@@ -81,6 +81,7 @@ jobs:
           echo "$out" | grep -q "propose="
           echo "$out" | grep -q "MOCK"
 
+      # A4 hook: proactivity tick/brief use fixture sources only (no network).
       - name: Run proactivity tick (park, then dedupe)
         run: |
           set -euo pipefail
@@ -89,6 +90,15 @@ jobs:
             --tz=Asia/Shanghai \
             --now=2026-10-10T15:00:00+08:00 \
             --repeat=2
+
+      - name: Run proactivity morning brief (fixtures)
+        run: |
+          set -euo pipefail
+          go run ./cmd/proactivity brief \
+            --weather=clear \
+            --tz=Asia/Shanghai \
+            --now=2026-10-10T08:00:00+08:00 \
+            --memory-fixture
 
       - name: Package Linux tar.gz
         run: ./scripts/package-linux.sh
@@ -105,6 +115,7 @@ jobs:
             echo "error: artifact is unexpectedly small (${SIZE} bytes)" >&2
             exit 1
           fi
+          # Prove the packed binary runs.
           tar -tzf "$ART"
           tmp="$(mktemp -d)"
           tar -xzf "$ART" -C "$tmp"
@@ -112,10 +123,12 @@ jobs:
           "$tmp"/proactive-workbench-0.1.0-linux-amd64/workbench tools
           "$tmp"/proactive-workbench-0.1.0-linux-amd64/workbench today \
             --now=2026-10-10T07:15:00+08:00 --tz=Asia/Shanghai
-          "$tmp"/proactive-workbench-0.1.0-linux-amd64/proactivity tick \
-            --now=2026-10-10T15:00:00+08:00 --tz=Asia/Shanghai
+          # Checksum must name the tarball, not an absolute runner path.
           grep -qv '/' dist/proactive-workbench-0.1.0-linux-amd64.tar.gz.sha256
           (cd dist && sha256sum -c proactive-workbench-0.1.0-linux-amd64.tar.gz.sha256)
+          "$tmp"/proactive-workbench-0.1.0-linux-amd64/proactivity tick \
+            --now=2026-10-10T15:00:00+08:00 \
+            --tz=Asia/Shanghai
 
       - name: Upload Linux artifact
         uses: actions/upload-artifact@v4
