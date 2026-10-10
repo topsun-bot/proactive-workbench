@@ -1,6 +1,6 @@
 # 主动性工作台（共用 Go 内核：Linux 命令行 + Mac 客户端）— 开发 To-do
 
-状态：待办 / 进行中 / 已完成 / 搁置。负责人为张益新指定的 bot 或本人。最后更新：2026-10-09。
+状态：待办 / 进行中 / 待对接 / 已完成 / 搁置。负责人为张益新指定的 bot 或本人。最后更新：2026-10-10。
 
 > 变更（2026-10-09，张益新决定）：短期内找不到 Mac，开发与交付改为 Linux，不再出 DMG。Mac 相关事项（8、9）搁置。
 > 变更（2026-10-09 约 9:42，张益新电话确认）：纯软件工作台，不是机器人，没有四肢，就是一个「大脑」在运行；核心是主动 agent（持续感知环境、自主生成目标、持续规划，不等人下指令）；交付物为 Linux 程序（ubuntu-latest 构建），不再做 Mac DMG；「跟随人」「取外卖」等机器人动作全部取消。
@@ -9,24 +9,24 @@
 >
 > 统一规则：负责人自己开工；开始时把状态改为进行中，完成后改为已完成并写明完成了什么和 commit 链接。
 
-方向：共用 Go 内核 + Linux 命令行（已在 main，见 PR #1）+ Mac 客户端与未签名 DMG（待做，第 15、16 项）。签名/公证属于后续。
+方向：共用 Go 内核 + Linux 命令行 + Mac 客户端与未签名 DMG，均已在 main（PR #1、#2、#3、#5，2026-10-10 合并）。还差真机验证（第 9 项）。签名/公证属于后续。
 
 | # | 任务 | 状态 | 负责人 | 验收标准 |
 |---|---|---|---|---|
 | 1 | 建仓库 topsun-bot/proactive-workbench（已公开） | 已完成 | 主动Agent | 仓库可访问，Public，默认分支 main |
-| 2 | Linux 客户端框架（桌面应用或命令行，形态由 Shaoruru 定；主界面 + 工具插件接口） | 进行中 | Shaoruru | Go CLI `workbench`；插件接口 + calendar/weather/alarm 桩；PR #1 |
-| 3 | GitHub Actions ubuntu-latest 构建 Linux 可运行产物（macOS DMG 任务见第 16 项） | 进行中 | Shaoruru | ubuntu-latest 上 Actions 跑绿，tar.gz artifact；workflow `Linux build` |
-| 4 | 「明天早上八点提醒带伞」跨工具演示在 Linux 上跑通（天气先 mock） | 进行中 | Shaoruru | `workbench demo`；按已批准的 docs/PRD.md：雨天建日历+闹钟，**不下雨也照样提醒**（文案说明降水概率），天气查不到也提醒；CI 日志打印输出 |
-| 5 | 首版范围：选 3–5 个工具，一页 PRD | 待办 | A3 产品经理 | 一页 PRD，张益新批准 |
-| 6 | 数据源：天气 API + Linux 日历/提醒接入（如 CalDAV / ICS 文件 / 本地提醒，不用 EventKit） | 待办 | A4 技术互联 | 天气 API 调用示例 + Linux 日历/提醒接入方案与权限说明 |
-| 7 | 主动性内核设计：持续感知 → 自主生成目标 → 持续规划 → 何时打扰（不等人下指令） | 待办 | A4 技术互联 | 设计文档 + 打扰规则，用「带伞」场景走通 |
+| 2 | Linux 客户端框架（桌面应用或命令行，形态由 Shaoruru 定；主界面 + 工具插件接口） | 已完成 | Shaoruru | Go CLI `workbench`；插件接口 + calendar/weather/alarm 工具；[PR #1](https://github.com/topsun-bot/proactive-workbench/pull/1)，评审修复 [PR #2](https://github.com/topsun-bot/proactive-workbench/pull/2)（planner 走 `tool.Registry`） |
+| 3 | GitHub Actions ubuntu-latest 构建 Linux 可运行产物（macOS DMG 任务见第 16 项） | 已完成 | Shaoruru | workflow `CI` 的 ubuntu-latest 任务跑绿，上传 tar.gz artifact；[PR #1](https://github.com/topsun-bot/proactive-workbench/pull/1)、[PR #2](https://github.com/topsun-bot/proactive-workbench/pull/2) |
+| 4 | 「明天早上八点提醒带伞」跨工具演示在 Linux 上跑通（天气先 mock） | 已完成 | Shaoruru | `workbench demo`：雨天建日历+闹钟，不下雨也照样提醒（文案说明降水概率），天气查不到也提醒；CI 日志打印输出；[PR #1](https://github.com/topsun-bot/proactive-workbench/pull/1)、[PR #2](https://github.com/topsun-bot/proactive-workbench/pull/2) |
+| 5 | 首版范围：选 3–5 个工具，一页 PRD | 已完成 | A3 产品经理 | `docs/PRD.md`，张益新已批准；[c6d71d3](https://github.com/topsun-bot/proactive-workbench/commit/c6d71d3eeb137be20a7f18592e4c94c072d637cc) |
+| 6 | 数据源：天气 API + Linux 日历/提醒接入（如 CalDAV / ICS 文件 / 本地提醒，不用 EventKit） | 已完成 | A4 技术互联 | [PR #3](https://github.com/topsun-bot/proactive-workbench/pull/3)：`internal/datasources`（Open-Meteo 客户端 + 录制 fixture、本地 ICS 读取、CalDAV 占位、地点 MOCK）。注意：命令行目前仍用 fixture，尚未接实时 Open-Meteo 和真实 ICS 文件 |
+| 7 | 主动性内核设计：持续感知 → 自主生成目标 → 持续规划 → 何时打扰（不等人下指令） | 已完成 | A4 技术互联 | [PR #3](https://github.com/topsun-bot/proactive-workbench/pull/3)：`internal/proactivity`（感知→目标→规划→打扰判断、第一道闸门 propose/reason、例程上次运行时间落盘），设计见 `internal/datasources/DESIGN.md`、`internal/proactivity/README.md` |
 | 8 | Apple 开发者证书/签名/公证 是否购买 | 搁置 | 张益新 | 后续再定；首版 DMG 不签名（2026-10-09 下午） |
-| 9 | 在 Mac（updates-MacBook-Pro）上安装未签名 DMG 并反馈 | 待办 | 张益新 | 能打开（未签名需右键「打开」放行）；晨间简报、任务卡片、主动建议能显示；反馈问题（2026-10-09 下午重开） |
-| 12 | 工作日巡检：构建、Linux 产物、带伞演示是否退化 | 待办 | PW 日常巡检 QA | 直接在 Linux 上验收，无需 Mac；巡检脚本提交到 tests/（附 commit 链接）；确认开启后每个工作日一份报告 |
+| 9 | 在 Mac（updates-MacBook-Pro）上安装未签名 DMG 并反馈 | 待办 | 张益新 | 能打开（未签名需右键「打开」放行）；晨间简报、任务卡片、主动建议能显示。还需真机人工确认：原生窗口显示、日历授权弹窗（允许 / 拒绝各一次）、专注模式开 / 关时横幅是否正确 |
+| 12 | 工作日巡检：构建、Linux 产物、带伞演示是否退化 | 待对接 | PW 日常巡检 QA | 冒烟脚本已在 `tests/smoke/`（[18e324a](https://github.com/topsun-bot/proactive-workbench/commit/18e324a2e4eeb419f3058cf9f387505abb75c0ac)），还没接上产品入口（需设 PW_BUILD_CMD / PW_APP_CMD / PW_DEMO_CMD）；定时巡检未开 |
 | 13 | Bug 复现包（步骤、日志、截图、提交） | 待办 | PW Bug 复现 | 直接在 Linux 上复现，无需 Mac；复现脚本提交到 tests/（附 commit 链接） |
-| 15 | Mac 客户端界面（参考 Today）：晨间简报、今日任务卡片、信号面板、例程列表、主动建议；调用共用 Go 内核 | 待办 | Shaoruru | 在 macOS 上能启动并显示五个区域；数据来自 Go 内核（不另写一套逻辑）；附 commit 链接 |
-| 16 | macOS CI：GitHub Actions `macos-latest` 构建未签名 DMG，与 ubuntu-latest 任务并存 | 待办 | Shaoruru | Actions 跑绿，DMG 作为 artifact 上传；不签名、不公证；附 commit 链接 |
-| 17 | 内核升级为类 Today 能力：活的记忆（日程、人、偏好、长期目标）、晨间简报、先开口的建议 + 打扰判断、定时例程 | 待办 | A4 技术互联 | Go 包 + 测试；Linux 命令行能输出晨间简报和一条主动建议；记忆可持久化；附 commit 链接 |
+| 15 | Mac 客户端界面（参考 Today）：晨间简报、今日任务卡片、信号面板、例程列表、主动建议；调用共用 Go 内核 | 已完成 | Shaoruru | [PR #5](https://github.com/topsun-bot/proactive-workbench/pull/5)：`internal/today` 内嵌 web UI + `macos/TodayWorkbench`（AppKit/WKWebView、EventKit、第二道通知闸门）；数据来自 Go 内核 |
+| 16 | macOS CI：GitHub Actions `macos-latest` 构建未签名 DMG，与 ubuntu-latest 任务并存 | 已完成 | Shaoruru | [PR #5](https://github.com/topsun-bot/proactive-workbench/pull/5)：workflow `CI` 的 macos-latest 任务跑绿，上传未签名 DMG；不签名、不公证 |
+| 17 | 内核升级为类 Today 能力：活的记忆（日程、人、偏好、长期目标）、晨间简报、先开口的建议 + 打扰判断、定时例程 | 已完成 | A4 技术互联 / Shaoruru | [PR #3](https://github.com/topsun-bot/proactive-workbench/pull/3)、[PR #5](https://github.com/topsun-bot/proactive-workbench/pull/5)：`internal/memory`（本地 JSON）、`proactivity brief`、`workbench today`、例程调度；演示数据标注 MOCK |
 
 ## 不在范围
 
