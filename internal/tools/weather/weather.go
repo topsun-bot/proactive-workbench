@@ -126,13 +126,13 @@ func ForecastFromResult(res tool.Result, validFor time.Time) (Forecast, error) {
 	if err != nil {
 		return Forecast{}, tool.InvalidPayload("forecast result has invalid temperatureC")
 	}
-	precip := 0
-	if raw := res.Data["precipPct"]; raw != "" {
-		n, err := strconv.Atoi(raw)
-		if err != nil {
-			return Forecast{}, tool.InvalidPayload("forecast result has invalid precipPct")
-		}
-		precip = n
+	rawPrecip := res.Data["precipPct"]
+	if rawPrecip == "" {
+		return Forecast{}, tool.InvalidPayload("forecast result is missing precipPct")
+	}
+	precip, err := strconv.Atoi(rawPrecip)
+	if err != nil || precip < 0 || precip > 100 {
+		return Forecast{}, tool.InvalidPayload("forecast result has invalid precipPct")
 	}
 	loc := res.Data["location"]
 	if loc == "" {

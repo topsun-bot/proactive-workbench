@@ -64,13 +64,14 @@ internal/flow/umbrella     Cross-tool umbrella flow
 internal/planner           Goal → flow via tool.Registry
 internal/intent            Phrase matching (EN + 中文)
 internal/datasources/      weather (Open-Meteo client + fixtures) | calendar (ICS, CalDAV stub) | situation (MOCK)
+internal/connector/        Unified 7-domain Connector contract, Registry, incremental SyncEngine, local test adapters
 internal/memory/           Local JSON long-term memory
 internal/proactivity/      sense → goal → plan → interrupt, brief, routines, HTTP API
 internal/today/            Today-style snapshot, embedded web UI, port file
 macos/TodayWorkbench/      AppKit/WKWebView shell, EventKit, notification gate
 scripts/package-linux.sh   linux/amd64 tar.gz
 scripts/package-macos.sh   unsigned DMG
-tests/smoke/               Smoke scripts (still waiting to be wired to the product entry points)
+tests/smoke/               Smoke & multi-scenario inspection scripts (build, serve liveness, rain/clear/unavailable/today)
 .github/workflows/         CI: ubuntu-latest + macos-latest
 ```
 

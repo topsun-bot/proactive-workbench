@@ -445,3 +445,33 @@ func TestAlarmFailureRollsBackCalendar(t *testing.T) {
 		t.Fatalf("calendar event should be rolled back, still have %d", len(cal.Events()))
 	}
 }
+
+type missingPrecipWeather struct{}
+
+func (missingPrecipWeather) Descriptor() tool.Descriptor {
+	return tool.Descriptor{ID: weather.ToolID, DisplayName: "Missing precip"}
+}
+
+func (missingPrecipWeather) Handle(req tool.Request) (tool.Result, error) {
+	return tool.Result{
+		Success: true,
+		Summary: "missing precipPct",
+		Data: map[string]string{
+			"condition":    "clear",
+			"temperatureC": "22",
+		},
+	}, nil
+}
+
+func TestMissingPrecipPctIsRejected(t *testing.T) {
+	clk, _ := shanghaiFriday()
+	reg := tool.NewRegistry()
+	reg.Register(missingPrecipWeather{})
+	reg.Register(calendar.New())
+	reg.Register(alarm.New())
+	_, err := umbrella.Execute(reg, clk)
+	if err == nil || !strings.Contains(err.Error(), "missing precipPct") {
+		t.Fatalf("expected missing precipPct error, got %v", err)
+	}
+}
+

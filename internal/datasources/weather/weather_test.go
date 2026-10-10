@@ -178,6 +178,22 @@ func TestPluginHandleMarksFixture(t *testing.T) {
 	if !strings.Contains(res.Data["sourceLabel"], "FIXTURE") {
 		t.Fatalf("source=%q", res.Data["sourceLabel"])
 	}
+	if res.Data["precipPct"] != "0" {
+		t.Fatalf("expected precipPct=0 for clear fixture at 15:00, got %q", res.Data["precipPct"])
+	}
+	if res.Data["validFor"] == "" {
+		t.Fatal("expected non-empty validFor in plugin result")
+	}
+
+	rainWrap := weather.NewTool(weather.MustMock(weather.FixtureRain))
+	morning := time.Date(2026, 10, 10, 8, 0, 0, 0, shanghai()).Format(time.RFC3339)
+	rainRes, err := rainWrap.Handle(tool.Request{Action: "forecast", Payload: map[string]string{"date": morning}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if rainRes.Data["precipPct"] != "80" {
+		t.Fatalf("expected precipPct=80 for rain fixture at 08:00, got %q", rainRes.Data["precipPct"])
+	}
 }
 
 func TestUnknownFixtureRejected(t *testing.T) {

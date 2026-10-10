@@ -22,11 +22,12 @@
 | 7 | 主动性内核设计：持续感知 → 自主生成目标 → 持续规划 → 何时打扰（不等人下指令） | 已完成 | A4 技术互联 | [PR #3](https://github.com/topsun-bot/proactive-workbench/pull/3)：`internal/proactivity`（感知→目标→规划→打扰判断、第一道闸门 propose/reason、例程上次运行时间落盘），设计见 `internal/datasources/DESIGN.md`、`internal/proactivity/README.md` |
 | 8 | Apple 开发者证书/签名/公证 是否购买 | 搁置 | 张益新 | 后续再定；首版 DMG 不签名（2026-10-09 下午） |
 | 9 | 在 Mac（updates-MacBook-Pro）上安装未签名 DMG 并反馈 | 待办 | 张益新 | 能打开（未签名需右键「打开」放行）；晨间简报、任务卡片、主动建议能显示。还需真机人工确认：原生窗口显示、日历授权弹窗（允许 / 拒绝各一次）、专注模式开 / 关时横幅是否正确 |
-| 12 | 工作日巡检：构建、Linux 产物、带伞演示是否退化 | 待对接 | PW 日常巡检 QA | 冒烟脚本已在 `tests/smoke/`（[18e324a](https://github.com/topsun-bot/proactive-workbench/commit/18e324a2e4eeb419f3058cf9f387505abb75c0ac)），还没接上产品入口（需设 PW_BUILD_CMD / PW_APP_CMD / PW_DEMO_CMD）；定时巡检未开 |
-| 13 | Bug 复现包（步骤、日志、截图、提交） | 待办 | PW Bug 复现 | 直接在 Linux 上复现，无需 Mac；复现脚本提交到 tests/（附 commit 链接） |
+| 12 | 工作日巡检：构建、Linux 产物、带伞演示是否退化 | 已完成 | PW 日常巡检 QA / 主动Agent | `tests/smoke/run_smoke.sh` 自动构建 `workbench` + `proactivity`，验证 `version` 与 `serve` 存活，并巡检 `rain` / `clear` / `unavailable` 带伞演示与 `today` 未知天气诚实降级；`selftest.sh` 9/9 通过 |
+| 13 | Bug 复现包（步骤、日志、截图、提交） | 已完成 | PW Bug 复现 / 主动Agent | 补齐 `internal/datasources/weather/plugin.go` 的 `precipPct`、`ForecastFromResult` 严校验及 `cmdToday` 对 `--weather=unavailable` 的诚实透传，并落地回归单测 |
 | 15 | Mac 客户端界面（参考 Today）：晨间简报、今日任务卡片、信号面板、例程列表、主动建议；调用共用 Go 内核 | 已完成 | Shaoruru | [PR #5](https://github.com/topsun-bot/proactive-workbench/pull/5)：`internal/today` 内嵌 web UI + `macos/TodayWorkbench`（AppKit/WKWebView、EventKit、第二道通知闸门）；数据来自 Go 内核 |
 | 16 | macOS CI：GitHub Actions `macos-latest` 构建未签名 DMG，与 ubuntu-latest 任务并存 | 已完成 | Shaoruru | [PR #5](https://github.com/topsun-bot/proactive-workbench/pull/5)：workflow `CI` 的 macos-latest 任务跑绿，上传未签名 DMG；不签名、不公证 |
 | 17 | 内核升级为类 Today 能力：活的记忆（日程、人、偏好、长期目标）、晨间简报、先开口的建议 + 打扰判断、定时例程 | 已完成 | A4 技术互联 / Shaoruru | [PR #3](https://github.com/topsun-bot/proactive-workbench/pull/3)、[PR #5](https://github.com/topsun-bot/proactive-workbench/pull/5)：`internal/memory`（本地 JSON）、`proactivity brief`、`workbench today`、例程调度；演示数据标注 MOCK |
+| 18 | 连接器基础框架：统一契约、发现与同步 | 已完成 | 主动Agent | `internal/connector`：日历/备忘录/提醒事项/文件/联系人/邮件/应用 7 大类统一契约与对象 schema、最小权限校验、MOCK 防冒充 live、增量同步与幂等去重、可诊断错误码，以及 `MemoryAdapter` + `SnapshotAdapter` 契约单测 |
 
 ## 不在范围
 

@@ -62,9 +62,11 @@ func (t *Tool) Handle(req tool.Request) (tool.Result, error) {
 			Data: map[string]string{
 				"condition":    string(p.Condition),
 				"temperatureC": strconv.Itoa(int(p.TemperatureC)),
+				"precipPct":    strconv.Itoa(p.PrecipProbPct),
 				"isMock":       strconv.FormatBool(snap.IsMock),
 				"sourceLabel":  snap.Source,
 				"location":     snap.Location.Label,
+				"validFor":     p.At.Format(time.RFC3339),
 			},
 		}, nil
 	default:

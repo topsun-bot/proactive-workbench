@@ -1,25 +1,15 @@
-# Linux 冒烟测试（Notion 开发看板 #12）
-
-只放在 `tests/`，不改产品代码。
+# 冒烟与日常巡检测试（Notion 开发看板 #12）
 
 ```bash
-bash tests/smoke/run_smoke.sh   # 冒烟：build / app_starts / umbrella_demo
-bash tests/smoke/selftest.sh    # 用 fixtures/fake_app.sh 验证脚本自身的判定逻辑
+bash tests/smoke/run_smoke.sh                 # 自动构建并巡检 build / app_starts / umbrella_demo
+PW_SMOKE_STRICT=1 bash tests/smoke/run_smoke.sh
+bash tests/smoke/selftest.sh                  # 验证 fake_app 注入场景 + 真实 Go 仓库四场景巡检
 ```
 
 | 检查项 | 判定 |
 |---|---|
-| build | `PW_BUILD_CMD`（或自动探测 Package.swift→`swift build`、package.json、Makefile）退出 0 |
-| app_starts | `PW_APP_CMD` 启动后存活 `PW_APP_ALIVE_SECS`（默认 5s）不崩；或 `PW_APP_START_MODE=exit0` 时以 0 退出 |
-| umbrella_demo | `PW_DEMO_CMD` 超时内退出 0，输出命中 `PW_DEMO_EXPECT`（默认：`带伞\|umbrella`、`08:00\|8:00\|八点`、`模拟\|mock`） |
+| `build` | 自动探测 `go.mod` 并执行 `CGO_ENABLED=0 go build` 构建 `workbench` 与 `proactivity`（也可通过 `PW_BUILD_CMD` 覆盖） |
+| `app_starts` | 验证 `workbench version` 退出 0，且 `workbench serve --addr=127.0.0.1:0` 启动后存活 `PW_APP_ALIVE_SECS`（默认 5s）不崩溃 |
+| `umbrella_demo` | 依次验证 4 个巡检场景并记录日志（含 commit、场景模式、期望与实际输出）：<br>1. `demo --weather=rain`：`Reminders created`、`Outcome:  rain`、`今天可能下雨`、`降水概率 80%`<br>2. `demo --weather=clear`：`Reminders created`、`Outcome:  no_rain`、`今天降水概率 5%`、`带不带你定`，且不含 `Reminders skipped`<br>3. `demo --weather=unavailable`：`Reminders created`、`Outcome:  weather_unavailable`、`记得带伞（天气暂时查不到）。`，且不伪造降水概率<br>4. `today --weather=unavailable`：包含 `Weather unavailable (no MOCK scenario)`，不伪造 `Clear · 22°C` |
 
-未配置的项记为 **SKIP（待对接）**，不算失败；`PW_SMOKE_STRICT=1` 时 SKIP 也算失败。
-
-## 待对接（TODO）
-
-产品框架（TODO.md #2 主窗口+插件接口、#3 macOS 构建出 DMG、#4 带伞示例，负责人 Shaoruru）尚未合入 main，需要：
-
-1. **Linux 可执行入口**：产品是 Mac 客户端（DMG），Linux 上无法启动 .app。需要框架提供可在 Linux 构建运行的无头入口（如 SwiftPM 的核心库 + CLI target，`--headless` / `--self-check`），然后设置 `PW_BUILD_CMD`、`PW_APP_CMD`。
-2. **带伞示例的命令行入口与输出约定**：需要 `PW_DEMO_CMD`（如 `<cli> demo umbrella`），并确认输出里包含「带伞」、「08:00」、「模拟数据」标注；若约定不同，改 `PW_DEMO_EXPECT`。
-3. **DMG 产物本身的启动验证**只能在 macOS 上做，不在本 Linux 冒烟范围内。
-4. 定时巡检暂不开启。
+在无 `go.mod` 且未配置环境变量的空目录中记为 **SKIP（待对接）**；`PW_SMOKE_STRICT=1` 时任何 SKIP 均判为失败。
