@@ -38,6 +38,9 @@ type Perception struct {
 	TomorrowAM weather.HourlyPoint
 	Events     []calendar.Event
 	Reminders  []calendar.Reminder
+	// CalendarError is set when ICS is missing or unreadable. Events stay empty.
+	CalendarError       string
+	CalendarUserMessage string
 }
 
 type Decision struct {

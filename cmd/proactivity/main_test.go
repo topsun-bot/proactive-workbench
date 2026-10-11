@@ -93,6 +93,26 @@ func TestBriefFixture(t *testing.T) {
 	}
 }
 
+func TestTickDebugFixtureLabeled(t *testing.T) {
+	var out bytes.Buffer
+	err := run([]string{
+		"tick",
+		"--debug-fixture",
+		"--now=2026-10-10T15:00:00+08:00",
+		"--tz=Asia/Shanghai",
+	}, &out, &out)
+	if err != nil {
+		t.Fatal(err)
+	}
+	text := out.String()
+	if !strings.Contains(text, "FIXTURE") {
+		t.Fatalf("debug-fixture must label fixtures\n%s", text)
+	}
+	if !strings.Contains(text, "visit_park") {
+		t.Fatalf("expected park goal\n%s", text)
+	}
+}
+
 func TestTickJSON(t *testing.T) {
 	var out bytes.Buffer
 	err := run([]string{

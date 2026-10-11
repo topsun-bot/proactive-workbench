@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/topsun-bot/proactive-workbench/internal/datasources/weather"
 	"github.com/topsun-bot/proactive-workbench/internal/memory"
 )
 
@@ -50,16 +51,27 @@ func FormatResult(r Result, tickNo int) string {
 	w("Clock:     %s\n", r.Perception.At.Format("2006-01-02 15:04 MST"))
 	w("Place:     %s  [%s]\n", r.Perception.Situation.Place, r.Perception.Situation.Source)
 	w("Activity:  %s\n", r.Perception.Situation.Activity)
-	w("Weather:   %s %.1f°C  [%s]\n",
-		r.Perception.NowWeather.Condition.DisplayName(),
-		r.Perception.NowWeather.TemperatureC,
-		r.Perception.Weather.Source,
-	)
-	w("Tomorrow8: %s %.1f°C\n",
-		r.Perception.TomorrowAM.Condition.DisplayName(),
-		r.Perception.TomorrowAM.TemperatureC,
-	)
-	w("Calendar:  %d event(s) in next 24h\n", len(r.Perception.Events))
+	if r.Perception.Weather.Available() {
+		w("Weather:   %s %.1f°C  [%s]\n",
+			r.Perception.NowWeather.Condition.DisplayName(),
+			r.Perception.NowWeather.TemperatureC,
+			r.Perception.Weather.Source,
+		)
+		w("Tomorrow8: %s %.1f°C\n",
+			r.Perception.TomorrowAM.Condition.DisplayName(),
+			r.Perception.TomorrowAM.TemperatureC,
+		)
+	} else {
+		w("Weather:   %s  [%s]\n", weather.UserFacingUnavailable, r.Perception.Weather.Source)
+		if r.Perception.Weather.Error != "" {
+			w("           error: %s\n", r.Perception.Weather.Error)
+		}
+	}
+	if r.Perception.CalendarError != "" {
+		w("Calendar:  %s (%s)\n", r.Perception.CalendarUserMessage, r.Perception.CalendarError)
+	} else {
+		w("Calendar:  %d event(s) in next 24h\n", len(r.Perception.Events))
+	}
 	for _, ev := range r.Perception.Events {
 		w("           - %s (%s)\n", ev.Title, ev.Start.Format("15:04"))
 	}

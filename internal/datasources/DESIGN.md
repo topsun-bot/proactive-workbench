@@ -42,9 +42,18 @@ Required query (what the adapter sends):
 - `forecast_days=2`
 - `timezone=<IANA>`
 
-**Default coordinates** are Shanghai city-hall published values (`31.2304, 121.4737`) so they line up with Shaoruru’s default `--tz=Asia/Shanghai`. They are **not** a GPS fix. Label every snapshot with the location label and `IsMock` / `Source`.
+**Default coordinates** are Shanghai Changning District (`31.2205, 121.4248`)
+from Wikipedia “Changning, Shanghai” (Changning NPC Committee,
+31°13′14″N 121°25′29″E). They line up with `--tz=Asia/Shanghai`. They are
+**not** a GPS fix. Override with config `lat`/`lon`. Label every snapshot
+with the location label and `IsMock` / `Source`.
 
-**Tests:** parse fixture JSON and talk to an injected `Doer`. Unit tests never call `api.open-meteo.com`. There is no `--live` flag on `cmd/proactivity` so CI cannot accidentally dial out.
+**Commands:** `workbench today` / `workbench serve` / `proactivity *`
+call `NewLiveOpenMeteo` by default. A failed fetch surfaces
+`weatherCondition=unavailable` and `天气暂时查不到` — never fixture numbers.
+Fixtures only under `--debug-fixture` (or `--weather` / `PW_DEBUG_FIXTURE`).
+
+**Tests:** parse fixture JSON and talk to an injected `Doer`. Unit tests never call `api.open-meteo.com`.
 
 **WMO codes** (Open-Meteo / WMO-4677, adapter mapping):
 

@@ -180,6 +180,25 @@ func TestPluginHandleMarksFixture(t *testing.T) {
 	}
 }
 
+func TestUnavailableSnapshotHasNoFabricatedNumbers(t *testing.T) {
+	snap := weather.UnavailableSnapshot(weather.DefaultLocation, "dial tcp: timeout")
+	if snap.Available() || snap.IsMock {
+		t.Fatalf("%#v", snap)
+	}
+	if snap.Current.Condition != weather.ConditionUnavailable {
+		t.Fatalf("cond %s", snap.Current.Condition)
+	}
+	if snap.Current.TemperatureC != 0 || snap.Current.PrecipProbPct != 0 {
+		t.Fatalf("fabricated %#v", snap.Current)
+	}
+	if snap.Error != "dial tcp: timeout" {
+		t.Fatalf("error %q", snap.Error)
+	}
+	if weather.UserFacingUnavailable != "天气暂时查不到" {
+		t.Fatalf("copy %q", weather.UserFacingUnavailable)
+	}
+}
+
 func TestUnknownFixtureRejected(t *testing.T) {
 	if _, err := weather.NewMock("hailstorm-invented"); err == nil {
 		t.Fatal("expected error")

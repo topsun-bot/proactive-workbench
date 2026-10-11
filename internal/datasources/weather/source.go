@@ -13,12 +13,19 @@ type Location struct {
 	Label     string
 }
 
-// DefaultLocation is Shanghai city-hall published coordinates so the default
-// matches Shaoruru’s `--tz=Asia/Shanghai`. This is not a device location.
+// DefaultLocation is Shanghai Changning District, used when the user has
+// not set lat/lon in config. This is not a device location and is never
+// obtained from GeoClue or CoreLocation.
+//
+// Coordinates 31.2205°N, 121.4248°E are the Changning NPC Committee point
+// published on Wikipedia “Changning, Shanghai”
+// (https://en.wikipedia.org/wiki/Changning,_Shanghai), DMS 31°13′14″N
+// 121°25′29″E. The district government is at 1320 Yuyuan Rd in the same
+// district. Four-decimal rounding matches the Open-Meteo query format.
 var DefaultLocation = Location{
-	Latitude:  31.2304,
-	Longitude: 121.4737,
-	Label:     "Shanghai (default coordinates; not a live GPS fix)",
+	Latitude:  31.2205,
+	Longitude: 121.4248,
+	Label:     "Shanghai Changning District (Wikipedia NPC Committee point; not a live GPS fix)",
 }
 
 // HourlyPoint is one hour from a forecast or fixture series.
@@ -33,6 +40,8 @@ type HourlyPoint struct {
 
 // Snapshot is a labeled weather read. IsMock / Source must stay honest:
 // fixtures say they are fixtures; Open-Meteo says it is Open-Meteo.
+// On a live fetch failure, Condition is unavailable, Error is set, and
+// TemperatureC / precip are left at zero — never filled with fixture numbers.
 type Snapshot struct {
 	ObservedAt time.Time
 	Location   Location
@@ -40,6 +49,13 @@ type Snapshot struct {
 	Hourly     []HourlyPoint
 	IsMock     bool
 	Source     string
+	// Error is an English log/API reason when the live query failed.
+	Error string
+}
+
+// Available is false when the live query failed or the condition is unavailable.
+func (s Snapshot) Available() bool {
+	return s.Error == "" && s.Current.Condition != ConditionUnavailable
 }
 
 func (s Snapshot) Summary() string {

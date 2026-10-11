@@ -14,9 +14,11 @@ import (
 
 	_ "time/tzdata"
 
+	"github.com/topsun-bot/proactive-workbench/internal/appconfig"
 	"github.com/topsun-bot/proactive-workbench/internal/clock"
 	"github.com/topsun-bot/proactive-workbench/internal/flow/umbrella"
 	"github.com/topsun-bot/proactive-workbench/internal/planner"
+	"github.com/topsun-bot/proactive-workbench/internal/proactivity"
 	"github.com/topsun-bot/proactive-workbench/internal/today"
 	"github.com/topsun-bot/proactive-workbench/internal/tool"
 	"github.com/topsun-bot/proactive-workbench/internal/tools/alarm"
@@ -68,8 +70,8 @@ func printUsage(w io.Writer) {
 Usage:
   workbench demo [--weather=rain|clear|cloudy|unavailable] [--now=RFC3339] [--tz=IANA]
   workbench plan "<goal>" [--weather=...] [--now=...] [--tz=...]
-  workbench today [--weather=...] [--now=...] [--tz=...]
-  workbench serve [--addr=127.0.0.1:8741] [--debug-fixture] [--weather=...] [--now=...] [--tz=...]
+  workbench today [--debug-fixture] [--weather=...] [--now=...] [--tz=...] [--config=] [--ics-path=] [--lat=] [--lon=]
+  workbench serve [--addr=127.0.0.1:8741] [--debug-fixture] [--weather=...] [--now=...] [--tz=...] [--config=] [--ics-path=]
   workbench tools
   workbench version
 
@@ -77,9 +79,11 @@ The built-in cross-tool demo is:
   明天早上八点提醒带伞
   bring an umbrella tomorrow 8am
 
-Weather in this build is MOCK (not live data). Per docs/PRD.md the
-reminder is always created: rain, clear/cloudy, and weather-unavailable
-use different copy. --weather=unavailable simulates a failed query.
+demo/plan use MOCK weather for the umbrella planner (per docs/PRD.md).
+today/serve default to live Open-Meteo + local ICS. Location comes from
+config lat/lon, else Shanghai Changning District — no GeoClue/CoreLocation.
+Network failure shows 天气暂时查不到 (never fixture numbers). Fixtures only
+with --debug-fixture / --weather / PW_DEBUG_FIXTURE.
 `)
 }
 
@@ -127,7 +131,7 @@ func cmdPlan(args []string, w io.Writer) error {
 }
 
 func cmdToday(args []string, w io.Writer) error {
-	opts, err := parseRunFlags(args, w)
+	opts, err := parseServeArgs(args, w)
 	if errors.Is(err, flag.ErrHelp) {
 		return nil
 	}
@@ -140,11 +144,7 @@ func cmdToday(args []string, w io.Writer) error {
 	} else {
 		now = now.In(opts.tz)
 	}
-	wx := opts.weather
-	if wx == weather.Unavailable {
-		wx = weather.Clear
-	}
-	core, err := today.NewServeCore(now, opts.tz, wx)
+	core, wx, err := buildTodayCore(opts, now)
 	if err != nil {
 		return err
 	}
@@ -164,6 +164,10 @@ type serveOpts struct {
 	now        time.Time
 	tz         *time.Location
 	debugOn    bool
+	configPath string
+	icsPath    string
+	lat        string
+	lon        string
 }
 
 func envTruthy(key string) bool {
@@ -186,24 +190,33 @@ func parseServeArgs(args []string, helpOut io.Writer) (serveOpts, error) {
 	fs.Usage = func() {
 		fmt.Fprint(helpOut, `Usage:
   workbench serve [--addr=127.0.0.1:8741] [--debug-fixture] [--weather=...] [--now=RFC3339] [--tz=IANA]
+                 [--config=PATH] [--ics-path=PATH] [--lat=N] [--lon=N]
 
-Default: real current time and no MOCK weather scenario.
-Mock clock/weather only via --debug-fixture, --now, --weather, or env
-PW_DEBUG_FIXTURE / PW_DEBUG_NOW / PW_DEBUG_WEATHER.
+Default: live Open-Meteo + ICS from config (Application Support / XDG
+today-workbench/config.json). Mock clock/weather only via --debug-fixture,
+--now, --weather, or env PW_DEBUG_FIXTURE / PW_DEBUG_NOW / PW_DEBUG_WEATHER.
 
 `)
 		fs.PrintDefaults()
 	}
 	addrFlag := fs.String("addr", today.DefaultListenAddr, "listen address (falls back if busy)")
-	weatherFlag := fs.String("weather", "", "MOCK weather scenario (debug only)")
+	weatherFlag := fs.String("weather", "", "MOCK weather scenario (implies debug fixture)")
 	nowFlag := fs.String("now", "", "override current time RFC3339 (debug only)")
 	tzFlag := fs.String("tz", "Asia/Shanghai", "IANA timezone")
 	debugFlag := fs.Bool("debug-fixture", false, "use the canned 2026-10-10 07:15 + clear MOCK weather")
+	configFlag := fs.String("config", "", "config.json path")
+	icsFlag := fs.String("ics-path", "", "ICS file or directory")
+	latFlag := fs.String("lat", "", "forecast latitude")
+	lonFlag := fs.String("lon", "", "forecast longitude")
 	if err := fs.Parse(args); err != nil {
 		return opts, err
 	}
 	opts.addr = *addrFlag
 	opts.debugOn = *debugFlag || envTruthy("PW_DEBUG_FIXTURE")
+	opts.configPath = *configFlag
+	opts.icsPath = *icsFlag
+	opts.lat = *latFlag
+	opts.lon = *lonFlag
 
 	nowRaw := *nowFlag
 	if nowRaw == "" {
@@ -245,6 +258,49 @@ PW_DEBUG_FIXTURE / PW_DEBUG_NOW / PW_DEBUG_WEATHER.
 	return opts, nil
 }
 
+func buildTodayCore(opts serveOpts, now time.Time) (*proactivity.Core, weather.Condition, error) {
+	if opts.debugOn || opts.weatherSet {
+		wx := opts.weather
+		if wx == "" {
+			wx = weather.Clear
+		}
+		core, err := today.NewServeCore(now, opts.tz, wx)
+		return core, wx, err
+	}
+	cfg, err := appconfig.Load(opts.configPath, os.Getenv)
+	if err != nil {
+		return nil, "", err
+	}
+	if opts.icsPath != "" {
+		cfg.ICSPath = opts.icsPath
+	}
+	if opts.lat != "" || opts.lon != "" {
+		if opts.lat == "" || opts.lon == "" {
+			return nil, "", fmt.Errorf("--lat and --lon must be set together")
+		}
+		var lat, lon float64
+		if _, err := fmt.Sscanf(opts.lat, "%f", &lat); err != nil {
+			return nil, "", fmt.Errorf("invalid --lat: %w", err)
+		}
+		if _, err := fmt.Sscanf(opts.lon, "%f", &lon); err != nil {
+			return nil, "", fmt.Errorf("invalid --lon: %w", err)
+		}
+		cfg.Lat = lat
+		cfg.Lon = lon
+		cfg.UsedDefaultLocation = false
+	}
+	sensors, err := appconfig.Sensors(appconfig.SensorOpts{
+		Config: cfg,
+		Now:    now,
+		TZ:     opts.tz,
+	})
+	if err != nil {
+		return nil, "", err
+	}
+	core, err := today.NewServeCoreFromSensors(sensors, nil)
+	return core, "", err
+}
+
 func cmdServe(args []string, w io.Writer) error {
 	opts, err := parseServeArgs(args, w)
 	if errors.Is(err, flag.ErrHelp) {
@@ -253,7 +309,19 @@ func cmdServe(args []string, w io.Writer) error {
 	if err != nil {
 		return err
 	}
-	url, srv, portPath, err := today.ListenAndServe(opts.addr, opts.now, opts.tz, opts.weather)
+	var url string
+	var srv interface{ Close() error }
+	var portPath string
+	if opts.debugOn || opts.weatherSet {
+		url, srv, portPath, err = today.ListenAndServe(opts.addr, opts.now, opts.tz, opts.weather)
+	} else {
+		core, _, err2 := buildTodayCore(opts, opts.now)
+		if err2 != nil {
+			return err2
+		}
+		mux := today.NewMuxWithCore(opts.now, opts.tz, opts.weather, core)
+		url, srv, portPath, err = today.ListenAndServeHandler(opts.addr, mux)
+	}
 	if err != nil {
 		return err
 	}
