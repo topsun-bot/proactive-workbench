@@ -6,6 +6,7 @@ import (
 	"strings"
 	"time"
 
+	dscal "github.com/topsun-bot/proactive-workbench/internal/datasources/calendar"
 	dsweather "github.com/topsun-bot/proactive-workbench/internal/datasources/weather"
 	"github.com/topsun-bot/proactive-workbench/internal/proactivity"
 	"github.com/topsun-bot/proactive-workbench/internal/tools/weather"
@@ -36,6 +37,7 @@ type Snapshot struct {
 	WeatherAvailable    bool
 	WeatherError        string
 	WeatherUserMessage  string
+	CalendarStatus      string
 	CalendarAvailable   bool
 	CalendarError       string
 	CalendarUserMessage string
@@ -56,10 +58,15 @@ type Input struct {
 	// Core is the PR #3 gate-1 source of truth. Suggestions copy propose/reason
 	// from Core.Today — they are not recomputed here.
 	Core *proactivity.Core
+	// DebugFixture opts into labeled MOCK memory/people/task cards.
+	// Default mode never invents standup/walk/sleep/people.
+	DebugFixture bool
 }
 
 func Build(in Input, mem LongTerm) Snapshot {
-	if mem.SourceLabel == "" {
+	if !in.DebugFixture {
+		mem = LongTerm{}
+	} else if mem.SourceLabel == "" {
 		mem = Fixture()
 	}
 	loc := in.Now.Location()
@@ -67,14 +74,15 @@ func Build(in Input, mem LongTerm) Snapshot {
 		loc = time.UTC
 	}
 	wx := in.Weather
-	weatherMock := wx != "" && wx != weather.Unavailable
+	weatherMock := in.DebugFixture && wx != "" && wx != weather.Unavailable
 	weatherLine := dsweather.UserFacingUnavailable
 	weatherAvail := false
 	wxErr := ""
 	wxUser := dsweather.UserFacingUnavailable
-	calAvail := true
-	calErr := ""
-	calUser := ""
+	calAvail := false
+	calErr := "calendar: ICS path is not configured"
+	calUser := dscal.UserFacingUnconfigured
+	calStatus := CalendarStatusUnconfigured
 
 	var suggestions []Suggestion
 	if in.Core != nil {
@@ -82,14 +90,17 @@ func Build(in Input, mem LongTerm) Snapshot {
 		if err == nil {
 			gate := proactivity.FirstGateFrom(res)
 			w := proactivity.ResultToSuggestion(res)
-			suggestions = []Suggestion{{
-				Title:   w.Title,
-				Body:    w.Body,
-				Kind:    w.Kind,
-				Source:  w.Source,
-				Propose: gate.Propose,
-				Reason:  gate.Reason,
-			}}
+			if in.DebugFixture {
+				suggestions = []Suggestion{{
+					Title:   w.Title,
+					Body:    w.Body,
+					Kind:    w.Kind,
+					Source:  w.Source,
+					Propose: gate.Propose,
+					Reason:  gate.Reason,
+				}}
+			}
+			// Live weather comes from Perception.Available(), never TemperatureC == 0.
 			if !weatherMock {
 				if res.Perception.Weather.Available() {
 					p := res.Perception.NowWeather
@@ -102,11 +113,16 @@ func Build(in Input, mem LongTerm) Snapshot {
 					weatherLine = dsweather.UserFacingUnavailable
 					wxErr = res.Perception.Weather.Error
 					wxUser = dsweather.UserFacingUnavailable
+					weatherAvail = false
 				}
 			}
 			calErr = res.Perception.CalendarError
 			calUser = res.Perception.CalendarUserMessage
 			calAvail = calErr == ""
+			calStatus = CalendarStatusFromPerception(calErr, calUser)
+			if calAvail {
+				calUser = ""
+			}
 		}
 	}
 	if weatherMock {
@@ -123,6 +139,7 @@ func Build(in Input, mem LongTerm) Snapshot {
 		WeatherAvailable:    weatherAvail,
 		WeatherError:        wxErr,
 		WeatherUserMessage:  wxUser,
+		CalendarStatus:      calStatus,
 		CalendarAvailable:   calAvail,
 		CalendarError:       calErr,
 		CalendarUserMessage: calUser,
@@ -135,25 +152,78 @@ func Build(in Input, mem LongTerm) Snapshot {
 		MemorySource:        mem.SourceLabel,
 		Suggestions:         suggestions,
 	}
+	s.Briefing = briefingLine(s, mem, weatherMock, weatherAvail)
+	s.Signals = signalsFor(s, mem, in.DebugFixture, weatherMock)
+	return s
+}
+
+func briefingLine(s Snapshot, mem LongTerm, weatherMock, weatherAvail bool) string {
 	weatherBrief := s.WeatherLine
-	if weatherMock {
-		weatherBrief = "MOCK weather is " + s.WeatherLine
-	} else if weatherAvail {
-		weatherBrief = "Weather " + s.WeatherLine
-	} else {
+	if !weatherAvail {
 		weatherBrief = "Weather unavailable (" + dsweather.UserFacingUnavailable + ")"
+	} else if weatherMock {
+		weatherBrief = "MOCK weather is " + s.WeatherLine
+	} else {
+		weatherBrief = "Weather " + s.WeatherLine
 	}
-	s.Briefing = fmt.Sprintf(
-		"%s %s. %s. %s. Next meeting is standup with Sam at 10:00.",
-		s.Greeting, s.DateLabel, weatherBrief, mem.SleepNote,
-	)
-	s.Signals = []Signal{
+	calBrief := calendarBrief(s)
+	if mem.SourceLabel != "" {
+		return fmt.Sprintf(
+			"%s %s. %s. %s. Next meeting is standup with Sam at 10:00.",
+			s.Greeting, s.DateLabel, weatherBrief, mem.SleepNote,
+		)
+	}
+	return fmt.Sprintf("%s %s. %s. %s.", s.Greeting, s.DateLabel, weatherBrief, calBrief)
+}
+
+func calendarBrief(s Snapshot) string {
+	switch s.CalendarStatus {
+	case CalendarStatusPermissionDenied:
+		return "Calendar " + CalendarUserPermissionDenied
+	case CalendarStatusUnavailable:
+		if s.CalendarUserMessage != "" {
+			return "Calendar " + s.CalendarUserMessage
+		}
+		return "Calendar " + dscal.UserFacingUnreadable
+	case CalendarStatusAvailable:
+		return "Calendar available"
+	default:
+		if s.CalendarUserMessage != "" {
+			return "Calendar " + s.CalendarUserMessage
+		}
+		return "Calendar " + dscal.UserFacingUnconfigured
+	}
+}
+
+func signalsFor(s Snapshot, mem LongTerm, debug, weatherMock bool) []Signal {
+	calValue := s.CalendarUserMessage
+	if calValue == "" {
+		calValue = s.CalendarStatus
+	}
+	out := []Signal{
+		{Label: "Weather", Value: weatherSignalValue(s), Mock: weatherMock},
+		{Label: "Calendar", Value: calValue, Mock: false},
+	}
+	if !debug {
+		return out
+	}
+	return []Signal{
 		{Label: "Sleep", Value: fmt.Sprintf("%.1fh last night", mem.SleepHours), Mock: true},
 		{Label: "Weather", Value: s.WeatherLine, Mock: weatherMock},
 		{Label: "Next meeting", Value: "10:00 standup with Sam", Mock: true},
 		{Label: "People nearby", Value: peopleLine(mem.People), Mock: true},
+		{Label: "Calendar", Value: calValue, Mock: false},
 	}
-	return s
+}
+
+func weatherSignalValue(s Snapshot) string {
+	if !s.WeatherAvailable {
+		if s.WeatherUserMessage != "" {
+			return s.WeatherUserMessage
+		}
+		return dsweather.UserFacingUnavailable
+	}
+	return s.WeatherLine
 }
 
 func greeting(now time.Time) string {
@@ -180,9 +250,21 @@ func Format(s Snapshot) string {
 	fmt.Fprintln(&b, "Today")
 	fmt.Fprintln(&b, "====")
 	fmt.Fprintf(&b, "%s\n", s.Briefing)
-	fmt.Fprintf(&b, "Memory:  %s\n", s.MemorySource)
+	if s.MemorySource == "" {
+		fmt.Fprintln(&b, "Memory:  not configured")
+	} else {
+		fmt.Fprintf(&b, "Memory:  %s\n", s.MemorySource)
+	}
+	fmt.Fprintf(&b, "WeatherAvailable: %v\n", s.WeatherAvailable)
+	fmt.Fprintf(&b, "CalendarStatus:   %s\n", s.CalendarStatus)
+	if s.CalendarUserMessage != "" {
+		fmt.Fprintf(&b, "Calendar:         %s\n", s.CalendarUserMessage)
+	}
 	fmt.Fprintln(&b)
 	fmt.Fprintln(&b, "Tasks")
+	if len(s.Tasks) == 0 {
+		fmt.Fprintln(&b, "  - not configured")
+	}
 	for _, t := range s.Tasks {
 		fmt.Fprintf(&b, "  - %02d:%02d  %s (%s)\n", t.Hour, t.Minute, t.Title, t.Kind)
 	}
@@ -195,6 +277,9 @@ func Format(s Snapshot) string {
 		fmt.Fprintf(&b, "  - %s: %s%s\n", sig.Label, sig.Value, mark)
 	}
 	fmt.Fprintln(&b, "Routines")
+	if len(s.Routines) == 0 {
+		fmt.Fprintln(&b, "  - not configured")
+	}
 	for _, r := range s.Routines {
 		fmt.Fprintf(&b, "  - %02d:%02d  %s (%s)\n", r.Hour, r.Minute, r.Title, r.Window)
 	}

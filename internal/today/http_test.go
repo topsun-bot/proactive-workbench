@@ -16,7 +16,7 @@ func TestAPITodayReturnsSuggestion(t *testing.T) {
 		t.Fatal(err)
 	}
 	now := time.Date(2026, 10, 10, 7, 15, 0, 0, loc)
-	srv := httptest.NewServer(NewMux(now, loc, weather.Clear))
+	srv := httptest.NewServer(NewDebugMux(now, loc, weather.Clear))
 	t.Cleanup(srv.Close)
 	res, err := srv.Client().Get(srv.URL + "/api/today")
 	if err != nil {
@@ -78,6 +78,10 @@ func TestAPITodayLiveClockIsNotTheFixtureDate(t *testing.T) {
 	if snap.WeatherMock {
 		t.Fatal("live default must not label weather as a MOCK scenario")
 	}
+	if snap.WeatherAvailable {
+		t.Fatal("live default WeatherAvailable must be false without Open-Meteo")
+	}
+	assertNoFixtureText(t, snap.Briefing+" "+snap.SleepLine+" "+snap.MemorySource)
 }
 
 func TestAPITodayDebugFixtureFreezesClockAndWeather(t *testing.T) {
@@ -86,7 +90,7 @@ func TestAPITodayDebugFixtureFreezesClockAndWeather(t *testing.T) {
 		t.Fatal(err)
 	}
 	frozen := time.Date(2026, 10, 10, 7, 15, 0, 0, loc)
-	srv := httptest.NewServer(NewMux(frozen, loc, weather.Clear))
+	srv := httptest.NewServer(NewDebugMux(frozen, loc, weather.Clear))
 	t.Cleanup(srv.Close)
 	res, err := srv.Client().Get(srv.URL + "/api/today")
 	if err != nil {

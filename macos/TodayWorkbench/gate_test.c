@@ -62,6 +62,23 @@ int main(void) {
   expect_str("eventkit granted: title", granted.events[0].title, "Standup");
   expect_str("eventkit granted: fallback empty", granted.fallback, "");
 
+  char ui[64];
+  calendar_ui_status(kCalAuthGranted, kCalUIUnconfigured, ui, (int)sizeof(ui));
+  expect_str("eventkit granted + no ICS + 0 events → available (never infer empty list)", ui,
+             kCalUIAvailable);
+
+  CalendarSnapshot grantedEmpty;
+  calendar_source_after_auth(kCalAuthGranted, NULL, 0, &grantedEmpty);
+  expect_int("eventkit granted empty day: event_count", grantedEmpty.event_count, 0);
+  calendar_ui_status(grantedEmpty.auth, kCalUIUnconfigured, ui, (int)sizeof(ui));
+  expect_str("eventkit granted empty day → available, hide 未配置", ui, kCalUIAvailable);
+
+  calendar_ui_status(kCalAuthDenied, kCalUIUnconfigured, ui, (int)sizeof(ui));
+  expect_str("eventkit denied + no ICS → permission_denied", ui, kCalUIPermissionDenied);
+
+  calendar_ui_status(kCalAuthDenied, kCalUIAvailable, ui, (int)sizeof(ui));
+  expect_str("eventkit denied + ICS available → keep ICS", ui, kCalUIAvailable);
+
   if (g_fails != 0) {
     fprintf(stderr, "%d failure(s)\n", g_fails);
     return 1;

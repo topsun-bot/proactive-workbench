@@ -148,7 +148,16 @@ func cmdToday(args []string, w io.Writer) error {
 	if err != nil {
 		return err
 	}
-	fmt.Fprint(w, today.Format(today.Build(today.Input{Now: now, Weather: wx, Core: core}, today.Fixture())))
+	mem := today.LongTerm{}
+	if opts.debugOn {
+		mem = today.Fixture()
+	}
+	fmt.Fprint(w, today.Format(today.Build(today.Input{
+		Now:          now,
+		Weather:      wx,
+		Core:         core,
+		DebugFixture: opts.debugOn,
+	}, mem)))
 	return nil
 }
 
@@ -259,13 +268,17 @@ today-workbench/config.json). Mock clock/weather only via --debug-fixture,
 }
 
 func buildTodayCore(opts serveOpts, now time.Time) (*proactivity.Core, weather.Condition, error) {
-	if opts.debugOn || opts.weatherSet {
+	if opts.debugOn {
 		wx := opts.weather
 		if wx == "" {
 			wx = weather.Clear
 		}
 		core, err := today.NewServeCore(now, opts.tz, wx)
 		return core, wx, err
+	}
+	if opts.weatherSet {
+		core, err := today.NewServeCoreNoMemory(now, opts.tz, opts.weather)
+		return core, opts.weather, err
 	}
 	cfg, err := appconfig.Load(opts.configPath, os.Getenv)
 	if err != nil {
@@ -312,7 +325,9 @@ func cmdServe(args []string, w io.Writer) error {
 	var url string
 	var srv interface{ Close() error }
 	var portPath string
-	if opts.debugOn || opts.weatherSet {
+	if opts.debugOn {
+		url, srv, portPath, err = today.ListenAndServeDebug(opts.addr, opts.now, opts.tz, opts.weather)
+	} else if opts.weatherSet {
 		url, srv, portPath, err = today.ListenAndServe(opts.addr, opts.now, opts.tz, opts.weather)
 	} else {
 		core, _, err2 := buildTodayCore(opts, opts.now)
