@@ -71,7 +71,7 @@ func TestCoreProposeReachesSnapshotUnchangedAndDrivesMacGate(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			snap := Build(Input{Now: tc.now, Weather: tc.wx, Core: snapCore}, Fixture())
+			snap := Build(Input{Now: tc.now, Weather: tc.wx, Core: snapCore, DebugFixture: true}, Fixture())
 			if len(snap.Suggestions) != 1 {
 				t.Fatalf("snapshot suggestions: %+v", snap.Suggestions)
 			}
@@ -130,7 +130,7 @@ func TestAPITodayIsSnapshotAndV1TodayIsWire(t *testing.T) {
 	}
 	// Quiet hours so two Today ticks (api + v1) both stay propose=false.
 	now := time.Date(2026, 10, 10, 7, 15, 0, 0, loc)
-	srv := httptest.NewServer(NewMux(now, loc, weather.Clear))
+	srv := httptest.NewServer(NewDebugMux(now, loc, weather.Clear))
 	t.Cleanup(srv.Close)
 
 	apiRes, err := srv.Client().Get(srv.URL + "/api/today")

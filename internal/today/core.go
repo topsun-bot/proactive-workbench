@@ -42,13 +42,59 @@ func NewServeCore(now time.Time, loc *time.Location, wx toolweather.Condition) (
 	} else {
 		clk = clock.Fixed(now, loc)
 	}
+	return newServeCore(now, loc, wxSrc, sit, clk, calendar.NewMock(), true)
+}
+
+// NewServeCoreNoMemory is the default-mode Core: MOCK weather only if asked,
+// honest unconfigured calendar, empty memory. No standup/walk/people fixtures.
+func NewServeCoreNoMemory(now time.Time, loc *time.Location, wx toolweather.Condition) (*proactivity.Core, error) {
+	if loc == nil {
+		loc = time.UTC
+	}
+	var wxSrc dsweather.Source
+	if wx == "" || wx == toolweather.Unavailable {
+		wxSrc = unavailableWeather{loc: dsweather.DefaultLocation}
+	} else {
+		fixture := weatherFixtureName(wx)
+		mock, err := dsweather.NewMock(fixture)
+		if err != nil {
+			return nil, fmt.Errorf("today: weather fixture: %w", err)
+		}
+		mock.SetLocationTZ(loc)
+		wxSrc = mock
+	}
+	sit, err := situation.NewMock(situation.PlaceHome, situation.ActivityIdle)
+	if err != nil {
+		return nil, fmt.Errorf("today: situation fixture: %w", err)
+	}
+	var clk clock.Clock
+	if now.IsZero() {
+		clk = clock.Live(loc)
+	} else {
+		clk = clock.Fixed(now, loc)
+	}
+	return newServeCore(now, loc, wxSrc, sit, clk, calendar.NewUnconfigured(), false)
+}
+
+func newServeCore(
+	now time.Time,
+	loc *time.Location,
+	wxSrc dsweather.Source,
+	sit situation.Source,
+	clk clock.Clock,
+	cal calendar.Source,
+	seedMemory bool,
+) (*proactivity.Core, error) {
+	_ = now
 	store := memory.NewMemStore()
-	if _, err := store.SeedFixture(); err != nil {
-		return nil, fmt.Errorf("today: memory fixture: %w", err)
+	if seedMemory {
+		if _, err := store.SeedFixture(); err != nil {
+			return nil, fmt.Errorf("today: memory fixture: %w", err)
+		}
 	}
 	return NewServeCoreFromSensors(proactivity.Sensors{
 		Weather:   wxSrc,
-		Calendar:  calendar.NewMock(),
+		Calendar:  cal,
 		Situation: sit,
 		Clock:     clk,
 		Location:  dsweather.DefaultLocation,
@@ -56,14 +102,10 @@ func NewServeCore(now time.Time, loc *time.Location, wx toolweather.Condition) (
 }
 
 // NewServeCoreFromSensors is the live (or test-injected) Core constructor.
-// store may be nil; a fixture-seeded memory store is used then (same as serve).
+// store may be nil; an empty (not fixture-seeded) memory store is used then.
 func NewServeCoreFromSensors(s proactivity.Sensors, store memory.Store) (*proactivity.Core, error) {
 	if store == nil {
-		ms := memory.NewMemStore()
-		if _, err := ms.SeedFixture(); err != nil {
-			return nil, fmt.Errorf("today: memory fixture: %w", err)
-		}
-		store = ms
+		store = memory.NewMemStore()
 	}
 	return proactivity.NewCore(s, proactivity.DefaultPolicy(), store)
 }

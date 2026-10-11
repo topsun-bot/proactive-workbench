@@ -145,31 +145,20 @@
   CalendarSourceSnapshot *snap = self.calendarSnap;
   NSMutableString *js = [NSMutableString string];
   [js appendString:@"(function(){"];
-  [js appendString:@"var tasks=document.getElementById('tasks');"];
-  [js appendString:@"if(!tasks) return;"];
-  [js appendString:@"var old=document.getElementById('eventkit-note');"];
-  [js appendString:@"if(old) old.remove();"];
-  [js appendString:@"var note=document.createElement('p');"];
-  [js appendString:@"note.id='eventkit-note';"];
-  [js appendString:@"note.className='date';"];
+  [js appendString:@"if(typeof applyCalendarStatus!=='function') return;"];
   if ([snap.auth isEqualToString:@"granted"]) {
-    [js appendFormat:@"note.textContent='Calendar: EventKit (live) · %lu event(s). Location stays MOCK — no CoreLocation.';",
-                     (unsigned long)snap.events.count];
-    [js appendString:@"tasks.parentNode.insertBefore(note, tasks);"];
+    /* Granted: CalendarStatus=available. Hide 日历未配置 even if event_count==0. */
+    [js appendString:@"var events=[];"];
     for (CalendarSourceEvent *e in snap.events) {
-      [js appendString:@"{"];
-      [js appendString:@"var art=document.createElement('article'); art.className='task';"];
-      [js appendFormat:@"var time=document.createElement('time'); time.textContent=%@; art.appendChild(time);",
-                       [self jsString:e.start]];
-      [js appendFormat:@"var h=document.createElement('h3'); h.textContent=%@; art.appendChild(h);",
-                       [self jsString:e.title]];
-      [js appendString:@"var k=document.createElement('div'); k.className='kind'; k.textContent='eventkit'; art.appendChild(k);"];
-      [js appendString:@"tasks.appendChild(art);"];
-      [js appendString:@"}"];
+      [js appendString:@"{var ev={};"];
+      [js appendFormat:@"ev.start=%@;", [self jsString:e.start]];
+      [js appendFormat:@"ev.title=%@;", [self jsString:e.title]];
+      [js appendString:@"events.push(ev);}"];
     }
+    [js appendString:@"applyCalendarStatus('available','',events);"];
   } else {
-    [js appendString:@"note.textContent='Calendar: EventKit permission denied — MOCK schedule from the Go core.';"];
-    [js appendString:@"tasks.parentNode.insertBefore(note, tasks);"];
+    /* Denied/unknown + no ICS: permission denied, not 未配置. Never infer from []. */
+    [js appendString:@"applyCalendarStatus('permission_denied','日历权限被拒绝',[]);"];
   }
   [js appendString:@"})();"];
   [self.webView evaluateJavaScript:js completionHandler:nil];

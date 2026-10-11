@@ -68,10 +68,11 @@ jobs:
           echo "$out" | grep -q "Reminders created"
           echo "$out" | grep -q "天气暂时查不到"
 
-      - name: Run today briefing
+      - name: Run today briefing (debug fixtures)
         run: |
           set -euo pipefail
           out="$(go run ./cmd/workbench today \
+            --debug-fixture \
             --weather=clear \
             --tz=Asia/Shanghai \
             --now=2026-10-10T07:15:00+08:00)"
@@ -80,6 +81,22 @@ jobs:
           echo "$out" | grep -q "Morning walk"
           echo "$out" | grep -q "propose="
           echo "$out" | grep -q "MOCK"
+
+      - name: Run today default (no invented fixtures)
+        run: |
+          set -euo pipefail
+          out="$(go run ./cmd/workbench today \
+            --weather=unavailable \
+            --tz=Asia/Shanghai \
+            --now=2026-10-10T07:15:00+08:00)"
+          printf '%s\n' "$out"
+          echo "$out" | grep -q "天气暂时查不到"
+          echo "$out" | grep -q "日历未配置"
+          echo "$out" | grep -q "WeatherAvailable: false"
+          echo "$out" | grep -q "CalendarStatus:   unconfigured"
+          if echo "$out" | grep -q "Morning walk"; then echo "leaked Morning walk" >&2; exit 1; fi
+          if echo "$out" | grep -q "standup with Sam"; then echo "leaked standup" >&2; exit 1; fi
+          if echo "$out" | grep -q "4.5h last night"; then echo "leaked sleep fixture" >&2; exit 1; fi
 
       # A4 hook: proactivity tick/brief use fixture sources only (no network).
       - name: Run proactivity tick (park, then dedupe)

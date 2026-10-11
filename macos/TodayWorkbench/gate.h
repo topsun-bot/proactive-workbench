@@ -52,8 +52,17 @@ typedef struct {
   int event_count;
 } CalendarSnapshot;
 
+#define kCalUIAvailable "available"
+#define kCalUIUnconfigured "unconfigured"
+#define kCalUIPermissionDenied "permission_denied"
+#define kCalUIUnavailable "unavailable"
+#define kCalUIDeniedMessage "日历权限被拒绝"
+
 /* Feed calendar.Source: denied/unknown → empty list + fallback; granted → copy live. */
 void calendar_source_after_auth(int auth, const CalendarEvent *live, int n, CalendarSnapshot *out);
+
+/* Explicit UI status. Never uses event_count — empty day is still available when granted. */
+void calendar_ui_status(int eventkit_auth, const char *ics_status, char *out, int outlen);
 
 #ifdef __cplusplus
 }

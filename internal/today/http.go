@@ -13,22 +13,39 @@ import (
 )
 
 func NewMux(now time.Time, loc *time.Location, wx weather.Condition) *http.ServeMux {
-	if loc == nil {
-		loc = time.UTC
-	}
-	core, err := NewServeCore(now, loc, wx)
-	if err != nil {
-		panic(err)
-	}
-	return NewMuxWithCore(now, loc, wx, core)
+	return newMux(now, loc, wx, nil, false)
+}
+
+// NewDebugMux serves /api/today with labeled MOCK memory/people/task fixtures.
+func NewDebugMux(now time.Time, loc *time.Location, wx weather.Condition) *http.ServeMux {
+	return newMux(now, loc, wx, nil, true)
 }
 
 // NewMuxWithCore is NewMux plus an injectable Core. /api/today is the UI
 // Snapshot. /v1/* is A4's wire contract. The core Handler's bare /api/today
 // alias is not mounted here — that path stays Snapshot-only on workbench serve.
 func NewMuxWithCore(now time.Time, loc *time.Location, wx weather.Condition, core *proactivity.Core) *http.ServeMux {
+	return newMux(now, loc, wx, core, false)
+}
+
+func NewDebugMuxWithCore(now time.Time, loc *time.Location, wx weather.Condition, core *proactivity.Core) *http.ServeMux {
+	return newMux(now, loc, wx, core, true)
+}
+
+func newMux(now time.Time, loc *time.Location, wx weather.Condition, core *proactivity.Core, debug bool) *http.ServeMux {
 	if loc == nil {
 		loc = time.UTC
+	}
+	if core == nil {
+		var err error
+		if debug {
+			core, err = NewServeCore(now, loc, wx)
+		} else {
+			core, err = NewServeCoreNoMemory(now, loc, wx)
+		}
+		if err != nil {
+			panic(err)
+		}
 	}
 	live := now.IsZero()
 	mux := http.NewServeMux()
@@ -53,15 +70,26 @@ func NewMuxWithCore(now time.Time, loc *time.Location, wx weather.Condition, cor
 			stamp = stamp.In(loc)
 		}
 		reqCore := core
-		// Query overrides rebuild a fixture Core. A live clock (now.IsZero at
-		// mux creation) keeps the injected Core so Open-Meteo/ICS stay live.
+		debugOn := debug || r.URL.Query().Get("debug-fixture") == "1"
+		// Query overrides rebuild a Core. A live clock (now.IsZero at mux
+		// creation) keeps the injected Core so Open-Meteo/ICS stay live.
 		if r.URL.Query().Get("now") != "" || r.URL.Query().Get("weather") != "" {
-			built, err := NewServeCore(stamp, loc, cond)
+			var built *proactivity.Core
+			var err error
+			if debugOn {
+				built, err = NewServeCore(stamp, loc, cond)
+			} else {
+				built, err = NewServeCoreNoMemory(stamp, loc, cond)
+			}
 			if err == nil {
 				reqCore = built
 			}
 		}
-		snap := Build(Input{Now: stamp, Weather: cond, Core: reqCore}, Fixture())
+		mem := LongTerm{}
+		if debugOn {
+			mem = Fixture()
+		}
+		snap := Build(Input{Now: stamp, Weather: cond, Core: reqCore, DebugFixture: debugOn}, mem)
 		w.Header().Set("Content-Type", "application/json")
 		if err := json.NewEncoder(w).Encode(snap); err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -81,6 +109,10 @@ func NewMuxWithCore(now time.Time, loc *time.Location, wx weather.Condition, cor
 
 func ListenAndServe(addr string, now time.Time, loc *time.Location, wx weather.Condition) (string, *http.Server, string, error) {
 	return ListenAndServeHandler(addr, NewMux(now, loc, wx))
+}
+
+func ListenAndServeDebug(addr string, now time.Time, loc *time.Location, wx weather.Condition) (string, *http.Server, string, error) {
+	return ListenAndServeHandler(addr, NewDebugMux(now, loc, wx))
 }
 
 // ListenAndServeHandler binds the preferred loopback address and serves handler.

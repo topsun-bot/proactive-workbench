@@ -132,12 +132,18 @@ func TestTodayDebugFixture(t *testing.T) {
 	if !strings.Contains(text, "propose=") {
 		t.Fatalf("missing propose\n%s", text)
 	}
+	for _, want := range []string{"Morning walk", "standup with Sam", "4.5h last night"} {
+		if !strings.Contains(text, want) {
+			t.Fatalf("debug-fixture missing %q\n%s", want, text)
+		}
+	}
 }
 
 func TestTodayBriefing(t *testing.T) {
 	var out bytes.Buffer
 	err := run([]string{
 		"today",
+		"--debug-fixture",
 		"--weather=clear",
 		"--tz=Asia/Shanghai",
 		"--now=2026-10-10T07:15:00+08:00",
@@ -156,6 +162,44 @@ func TestTodayBriefing(t *testing.T) {
 		if !strings.Contains(text, want) {
 			t.Fatalf("missing %q\n%s", want, text)
 		}
+	}
+}
+
+func TestTodayDefaultHasNoFixtureText(t *testing.T) {
+	var out bytes.Buffer
+	err := run([]string{
+		"today",
+		"--weather=unavailable",
+		"--tz=Asia/Shanghai",
+		"--now=2026-10-10T07:15:00+08:00",
+	}, &out, &out)
+	if err != nil {
+		t.Fatal(err)
+	}
+	text := out.String()
+	for _, leak := range []string{
+		"standup with Sam",
+		"Morning walk",
+		"Team standup",
+		"Review umbrella demo PR",
+		"4.5h last night",
+		"Alex (roommate)",
+	} {
+		if strings.Contains(text, leak) {
+			t.Fatalf("default today leaked fixture %q\n%s", leak, text)
+		}
+	}
+	if !strings.Contains(text, "天气暂时查不到") {
+		t.Fatalf("default should show weather unavailable\n%s", text)
+	}
+	if !strings.Contains(text, "日历未配置") {
+		t.Fatalf("default should show calendar unconfigured\n%s", text)
+	}
+	if !strings.Contains(text, "WeatherAvailable: false") {
+		t.Fatalf("default must expose WeatherAvailable=false\n%s", text)
+	}
+	if !strings.Contains(text, "CalendarStatus:   unconfigured") {
+		t.Fatalf("default CalendarStatus\n%s", text)
 	}
 }
 

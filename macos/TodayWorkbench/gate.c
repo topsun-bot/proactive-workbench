@@ -40,5 +40,30 @@ void calendar_source_after_auth(int auth, const CalendarEvent *live, int n, Cale
     }
     out->events[i].is_mock = 0;
   }
-  out->event_count = n;
+    out->event_count = n;
+}
+
+void calendar_ui_status(int eventkit_auth, const char *ics_status, char *out, int outlen) {
+  if (out == NULL || outlen <= 0) {
+    return;
+  }
+  out[0] = '\0';
+  if (eventkit_auth == kCalAuthGranted) {
+    strncpy(out, kCalUIAvailable, (size_t)outlen - 1);
+    out[outlen - 1] = '\0';
+    return;
+  }
+  if ((eventkit_auth == kCalAuthDenied || eventkit_auth == kCalAuthUnknown) &&
+      (ics_status == NULL || ics_status[0] == '\0' ||
+       strcmp(ics_status, kCalUIUnconfigured) == 0)) {
+    strncpy(out, kCalUIPermissionDenied, (size_t)outlen - 1);
+    out[outlen - 1] = '\0';
+    return;
+  }
+  if (ics_status == NULL || ics_status[0] == '\0') {
+    strncpy(out, kCalUIUnconfigured, (size_t)outlen - 1);
+  } else {
+    strncpy(out, ics_status, (size_t)outlen - 1);
+  }
+  out[outlen - 1] = '\0';
 }
