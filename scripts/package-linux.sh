@@ -39,11 +39,11 @@ Run the cross-tool demo (weather is MOCK; clear still creates reminders):
   ./workbench demo
   ./workbench demo --weather=clear
   ./workbench plan "bring an umbrella tomorrow 8am" --weather=rain
-  ./workbench today --now=2026-10-10T07:15:00+08:00
+  ./workbench today --debug-fixture --now=2026-10-10T07:15:00+08:00
 
 One proactivity tick against FIXTURE sources (no network):
 
-  ./proactivity tick --now=2026-10-10T15:00:00+08:00 --repeat=2
+  ./proactivity tick --debug-fixture --now=2026-10-10T15:00:00+08:00 --repeat=2
 
 List plugins:
 
@@ -51,10 +51,10 @@ List plugins:
 
 Proactivity against FIXTURE sources (no network):
 
-  ./proactivity tick --now=2026-10-10T15:00:00+08:00 --repeat=2
-  ./proactivity brief --memory-fixture --now=2026-10-10T08:00:00+08:00
-  ./proactivity tick --json
-  ./proactivity serve --listen=127.0.0.1:8741 --memory-fixture
+  ./proactivity tick --debug-fixture --now=2026-10-10T15:00:00+08:00 --repeat=2
+  ./proactivity brief --debug-fixture --memory-fixture --now=2026-10-10T08:00:00+08:00
+  ./proactivity tick --debug-fixture --json
+  ./proactivity serve --listen=127.0.0.1:8741 --debug-fixture --memory-fixture
 EOF
 
 echo "==> archive"

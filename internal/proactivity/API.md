@@ -121,6 +121,60 @@ gate := proactivity.FirstGateFrom(res) // or res.Decision.FirstGate()
 `FirstGate` is `{propose bool, reason string}`. `ResultToSuggestion` and
 `GET /v1/today` already go through `FirstGateFrom`.
 
+## Live weather / calendar (default)
+
+`workbench serve` / `proactivity tick` default to **live Open-Meteo** and a
+**local ICS** path from user config. Fixtures are opt-in
+(`--debug-fixture`, `--weather`, `--calendar-fixture`, or `PW_DEBUG_FIXTURE`).
+
+Config file (same directory as last-run):
+
+| OS | Path |
+|----|------|
+| macOS | `~/Library/Application Support/Today Workbench/config.json` |
+| Linux | `$XDG_CONFIG_HOME/today-workbench/config.json` (fallback `~/.config/…`) |
+
+Keys: `lat`, `lon`, `timezone`, `ics_path`, optional `debug_fixture`.
+Env: `PW_LAT`, `PW_LON`, `PW_TIMEZONE`, `PW_ICS_PATH`, `PW_DEBUG_FIXTURE`,
+`PW_CONFIG`. Unset lat/lon use Shanghai Changning District
+(`31.2205, 121.4248` — Wikipedia Changning NPC Committee point). No GeoClue
+or CoreLocation.
+
+### Unavailable weather
+
+A network / HTTP / parse failure **does not** fail the request and **does
+not** substitute fixture temperatures. JSON:
+
+```json
+{
+  "weatherCondition": "unavailable",
+  "weatherTempC": 0,
+  "weatherAvailable": false,
+  "weatherError": "weather: Open-Meteo request failed: …",
+  "weatherUserMessage": "天气暂时查不到",
+  "weatherSource": "open-meteo forecast API"
+}
+```
+
+UI Snapshot (`GET /api/today`) mirrors this as `WeatherAvailable=false`,
+`WeatherUserMessage="天气暂时查不到"`, `WeatherLine` the same Chinese copy.
+Do not display 0°C as a real reading.
+
+### Unavailable calendar
+
+Missing `ics_path` or an unreadable ICS file yields empty `events` and:
+
+```json
+{
+  "calendarAvailable": false,
+  "calendarError": "calendar: ICS path is not configured",
+  "calendarUserMessage": "日历未配置"
+}
+```
+
+Unreadable path uses `日历暂时读不到`. EventKit stays on the Mac client
+(`macos/`). This core never invents appointments.
+
 ## `WireToday` / `suggestions[]`
 
 ```json
@@ -131,6 +185,8 @@ gate := proactivity.FirstGateFrom(res) // or res.Decision.FirstGate()
   "locationSource": "MOCK location — fixture-only, not a live GPS or GeoClue fix",
   "weatherCondition": "clear",
   "weatherSource": "FIXTURE weather — not a live observation",
+  "weatherAvailable": true,
+  "calendarAvailable": true,
   "goalKind": "visit_park",
   "brief": { },
   "suggestions": [
@@ -160,7 +216,9 @@ present even when the goal is `none` (`propose: false`).
   "weatherCondition": "clear",
   "weatherTempC": 22.0,
   "weatherSource": "FIXTURE weather — not a live observation",
+  "weatherAvailable": true,
   "calendarCount": 0,
+  "calendarAvailable": true,
   "events": [{"uid": "", "title": "", "start": ""}],
   "goalKind": "visit_park",
   "goalTitle": "Go to the park",

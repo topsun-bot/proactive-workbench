@@ -9,10 +9,10 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
-	"github.com/topsun-bot/proactive-workbench/internal/clock"
-	"github.com/topsun-bot/proactive-workbench/internal/datasources/calendar"
+	"github.com/topsun-bot/proactive-workbench/internal/appconfig"
 	"github.com/topsun-bot/proactive-workbench/internal/datasources/situation"
 	"github.com/topsun-bot/proactive-workbench/internal/datasources/weather"
 	"github.com/topsun-bot/proactive-workbench/internal/memory"
@@ -58,12 +58,16 @@ Usage:
   proactivity serve [flags]
 
 Shared flags:
-  --weather=clear|rain|cloudy   Fixture weather (not live data)
-  --place=home|work|away        Fixture place (not GPS)
+  --debug-fixture               Use labeled MOCK/FIXTURE weather and calendar
+  --weather=clear|rain|cloudy   Fixture weather (implies --debug-fixture)
+  --place=home|work|away        Fixture place (not GPS / GeoClue)
   --activity=idle|busy          Fixture activity
   --now=RFC3339                 Freeze the clock
-  --tz=IANA                     Timezone (default Asia/Shanghai)
+  --tz=IANA                     Timezone (default from config, else Asia/Shanghai)
   --calendar-fixture            Load the labeled sample.ics fixture events
+  --config=PATH                 config.json (default: platform Application Support / XDG)
+  --ics-path=PATH               ICS file or directory (overrides config ics_path)
+  --lat=N --lon=N               Forecast coordinates (overrides config; no GPS)
   --memory-file=PATH            Local JSON memory file
   --memory-fixture              Seed empty memory with the labeled fixture
   --json                        Language-neutral JSON envelope (same as HTTP)
@@ -75,8 +79,10 @@ serve extra:
   --listen=127.0.0.1:8741       Loopback only (see internal/proactivity/API.md)
   --last-run-file=PATH          Persist routine last-run JSON (default: platform path)
 
-Weather, calendar, situation, and fixture memory are FIXTURES. This command
-does not call Open-Meteo or any calendar host.
+Default: live Open-Meteo + local ICS from config. Location defaults to
+Shanghai Changning District when lat/lon are unset. Network failure prints
+天气暂时查不到 — never fixture numbers. Fixtures only with --debug-fixture
+(or --weather / --calendar-fixture / PW_DEBUG_FIXTURE).
 `)
 }
 
@@ -87,6 +93,11 @@ type commonOpts struct {
 	now             time.Time
 	tz              *time.Location
 	calendarFixture bool
+	debugFixture    bool
+	configPath      string
+	icsPath         string
+	lat             string
+	lon             string
 	memoryFile      string
 	memoryFixture   bool
 	asJSON          bool
@@ -97,7 +108,6 @@ type commonOpts struct {
 
 func parseCommon(name string, args []string, extra func(*flag.FlagSet, *commonOpts)) (commonOpts, error) {
 	opts := commonOpts{
-		weather:  weather.FixtureClear,
 		place:    situation.PlaceHome,
 		activity: situation.ActivityIdle,
 		repeat:   1,
@@ -105,12 +115,17 @@ func parseCommon(name string, args []string, extra func(*flag.FlagSet, *commonOp
 	}
 	fs := flag.NewFlagSet(name, flag.ContinueOnError)
 	fs.SetOutput(io.Discard)
-	weatherFlag := fs.String("weather", weather.FixtureClear, "fixture weather")
+	weatherFlag := fs.String("weather", "", "fixture weather (implies --debug-fixture)")
 	placeFlag := fs.String("place", "home", "fixture place")
 	activityFlag := fs.String("activity", "idle", "fixture activity")
 	nowFlag := fs.String("now", "", "override current time (RFC3339)")
-	tzFlag := fs.String("tz", "Asia/Shanghai", "IANA timezone")
+	tzFlag := fs.String("tz", "", "IANA timezone (default from config)")
 	calFix := fs.Bool("calendar-fixture", false, "load sample.ics")
+	debugFix := fs.Bool("debug-fixture", false, "use labeled MOCK/FIXTURE sensors")
+	configFlag := fs.String("config", "", "config.json path")
+	icsFlag := fs.String("ics-path", "", "ICS file or directory")
+	latFlag := fs.String("lat", "", "forecast latitude")
+	lonFlag := fs.String("lon", "", "forecast longitude")
 	memFile := fs.String("memory-file", "", "local JSON memory")
 	memFix := fs.Bool("memory-fixture", false, "seed labeled fixture memory")
 	asJSON := fs.Bool("json", false, "JSON envelope")
@@ -120,8 +135,10 @@ func parseCommon(name string, args []string, extra func(*flag.FlagSet, *commonOp
 	if err := fs.Parse(args); err != nil {
 		return opts, err
 	}
-	if _, ok := weather.ParseCondition(*weatherFlag); !ok {
-		return opts, fmt.Errorf("invalid --weather %q (use clear, rain, or cloudy)", *weatherFlag)
+	if *weatherFlag != "" {
+		if _, ok := weather.ParseCondition(*weatherFlag); !ok {
+			return opts, fmt.Errorf("invalid --weather %q (use clear, rain, cloudy, or unavailable)", *weatherFlag)
+		}
 	}
 	place, ok := situation.ParsePlace(*placeFlag)
 	if !ok {
@@ -131,7 +148,11 @@ func parseCommon(name string, args []string, extra func(*flag.FlagSet, *commonOp
 	if !ok {
 		return opts, fmt.Errorf("invalid --activity %q", *activityFlag)
 	}
-	loc, err := time.LoadLocation(*tzFlag)
+	tzName := *tzFlag
+	if tzName == "" {
+		tzName = "Asia/Shanghai"
+	}
+	loc, err := time.LoadLocation(tzName)
 	if err != nil {
 		return opts, fmt.Errorf("invalid --tz: %w", err)
 	}
@@ -140,6 +161,11 @@ func parseCommon(name string, args []string, extra func(*flag.FlagSet, *commonOp
 	opts.activity = act
 	opts.tz = loc
 	opts.calendarFixture = *calFix
+	opts.debugFixture = *debugFix || envTruthy("PW_DEBUG_FIXTURE")
+	opts.configPath = *configFlag
+	opts.icsPath = *icsFlag
+	opts.lat = *latFlag
+	opts.lon = *lonFlag
 	opts.memoryFile = *memFile
 	opts.memoryFixture = *memFix
 	opts.asJSON = *asJSON
@@ -153,35 +179,63 @@ func parseCommon(name string, args []string, extra func(*flag.FlagSet, *commonOp
 	return opts, nil
 }
 
+func envTruthy(key string) bool {
+	v := strings.TrimSpace(os.Getenv(key))
+	if v == "" {
+		return false
+	}
+	switch strings.ToLower(v) {
+	case "0", "false", "off", "no":
+		return false
+	default:
+		return true
+	}
+}
+
+func (opts commonOpts) loadConfig() (appconfig.Config, error) {
+	cfg, err := appconfig.Load(opts.configPath, os.Getenv)
+	if err != nil {
+		return appconfig.Config{}, err
+	}
+	if opts.icsPath != "" {
+		cfg.ICSPath = opts.icsPath
+	}
+	if opts.lat != "" || opts.lon != "" {
+		if opts.lat == "" || opts.lon == "" {
+			return appconfig.Config{}, fmt.Errorf("--lat and --lon must be set together")
+		}
+		var lat, lon float64
+		if _, err := fmt.Sscanf(opts.lat, "%f", &lat); err != nil {
+			return appconfig.Config{}, fmt.Errorf("invalid --lat: %w", err)
+		}
+		if _, err := fmt.Sscanf(opts.lon, "%f", &lon); err != nil {
+			return appconfig.Config{}, fmt.Errorf("invalid --lon: %w", err)
+		}
+		cfg.Lat = lat
+		cfg.Lon = lon
+		cfg.UsedDefaultLocation = false
+	}
+	if opts.debugFixture {
+		cfg.DebugFixture = true
+	}
+	return cfg, nil
+}
+
 func (opts commonOpts) sensors() (proactivity.Sensors, error) {
-	wx, err := weather.NewMock(opts.weather)
+	cfg, err := opts.loadConfig()
 	if err != nil {
 		return proactivity.Sensors{}, err
 	}
-	wx.SetLocationTZ(opts.tz)
-	sit, err := situation.NewMock(opts.place, opts.activity)
-	if err != nil {
-		return proactivity.Sensors{}, err
-	}
-	var cal calendar.Source
-	if opts.calendarFixture {
-		cal = calendar.MustFixtureMock()
-	} else {
-		cal = calendar.NewMock()
-	}
-	var clk clock.Clock
-	if !opts.now.IsZero() {
-		clk = clock.Fixed(opts.now, opts.tz)
-	} else {
-		clk = clock.Live(opts.tz)
-	}
-	return proactivity.Sensors{
-		Weather:   wx,
-		Calendar:  cal,
-		Situation: sit,
-		Clock:     clk,
-		Location:  weather.DefaultLocation,
-	}, nil
+	return appconfig.Sensors(appconfig.SensorOpts{
+		Config:          cfg,
+		DebugFixture:    opts.debugFixture,
+		WeatherFixture:  opts.weather,
+		CalendarFixture: opts.calendarFixture,
+		Place:           opts.place,
+		Activity:        opts.activity,
+		Now:             opts.now,
+		TZ:              opts.tz,
+	})
 }
 
 func (opts commonOpts) store() (memory.Store, error) {
@@ -236,7 +290,11 @@ func cmdTick(args []string, w io.Writer) error {
 	}
 	if !opts.asJSON {
 		fmt.Fprintln(w, "Proactive Workbench — proactivity core")
-		fmt.Fprintln(w, "Sources are FIXTURES (not live weather, not a live calendar, not GPS).")
+		if opts.debugFixture || opts.weather != "" || opts.calendarFixture {
+			fmt.Fprintln(w, "Sources are FIXTURES (--debug-fixture / --weather / --calendar-fixture).")
+		} else {
+			fmt.Fprintln(w, "Weather: live Open-Meteo. Calendar: local ICS (or 日历未配置). Location is not GPS.")
+		}
 		fmt.Fprintln(w)
 	}
 	var last proactivity.Result

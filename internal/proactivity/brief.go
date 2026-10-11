@@ -3,6 +3,7 @@ package proactivity
 import (
 	"fmt"
 
+	"github.com/topsun-bot/proactive-workbench/internal/datasources/weather"
 	"github.com/topsun-bot/proactive-workbench/internal/memory"
 )
 
@@ -32,14 +33,27 @@ func BuildBrief(p Perception, snap memory.Snapshot, suggestion Goal) Brief {
 	if !b.IsFixture {
 		b.Source = "morning brief"
 	}
-	b.Weather = fmt.Sprintf("%s %.1f°C now; tomorrow 08:00 %s %.1f°C [%s]",
-		p.NowWeather.Condition.DisplayName(),
-		p.NowWeather.TemperatureC,
-		p.TomorrowAM.Condition.DisplayName(),
-		p.TomorrowAM.TemperatureC,
-		p.Weather.Source,
-	)
-	if len(p.Events) == 0 {
+	if p.Weather.Available() {
+		b.Weather = fmt.Sprintf("%s %.1f°C now; tomorrow 08:00 %s %.1f°C [%s]",
+			p.NowWeather.Condition.DisplayName(),
+			p.NowWeather.TemperatureC,
+			p.TomorrowAM.Condition.DisplayName(),
+			p.TomorrowAM.TemperatureC,
+			p.Weather.Source,
+		)
+	} else {
+		b.Weather = fmt.Sprintf("%s [%s]", weather.UserFacingUnavailable, p.Weather.Source)
+		if p.Weather.Error != "" {
+			b.Weather += " (" + p.Weather.Error + ")"
+		}
+	}
+	if p.CalendarError != "" {
+		msg := p.CalendarUserMessage
+		if msg == "" {
+			msg = "calendar unavailable"
+		}
+		b.Events = append(b.Events, msg+" ("+p.CalendarError+")")
+	} else if len(p.Events) == 0 {
 		b.Events = append(b.Events, "No calendar events in the next 24 hours.")
 	} else {
 		for _, ev := range p.Events {
