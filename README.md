@@ -1,5 +1,41 @@
 # Proactive Workbench
 
+[![CI](https://github.com/topsun-bot/proactive-workbench/actions/workflows/linux-build.yml/badge.svg)](https://github.com/topsun-bot/proactive-workbench/actions/workflows/linux-build.yml)
+[![License: Apache-2.0](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](LICENSE)
+
+**An open-source, local-first proactive agent core in Go.** Instead of waiting for a prompt, it keeps sensing context (time, calendar, weather, activity), generates its own goals, plans across tools, and — before it speaks — decides whether interrupting you is worth it. One shared core ships as a Linux CLI and a macOS client (UI inspired by [Today](https://today.ai/)).
+
+- **Sense → goal → plan → interrupt gate**: a reusable loop for "speak first, but only when it matters" assistants (`internal/proactivity`).
+- **Tool plugin protocol**: every capability is a `tool.Tool` behind a `tool.Registry`; swap a MOCK tool for a live one without touching the flows.
+- **Cross-tool flows**: e.g. *"remind me to bring an umbrella at 8 am tomorrow"* uses weather + calendar + alarm together, and still reminds you when it won't rain.
+- **Living memory, morning brief, routines**: local JSON memory, a daily brief, and scheduled routines — no cloud account required.
+- **Honest about data**: anything not wired to a live source is labeled `MOCK` / fixture; the core never fabricates "sunny" when weather is unavailable.
+
+### Quick start
+
+```bash
+git clone https://github.com/topsun-bot/proactive-workbench.git
+cd proactive-workbench
+go test ./...
+go run ./cmd/workbench demo --weather=rain   # cross-tool umbrella flow
+go run ./cmd/proactivity brief --memory-fixture
+go run ./cmd/workbench serve                 # Today-style web UI on 127.0.0.1:8741
+```
+
+Requires Go 1.22+. Prebuilt Linux `tar.gz` and an unsigned macOS DMG are attached to [Releases](https://github.com/topsun-bot/proactive-workbench/releases) and CI artifacts.
+
+### Contributing
+
+Issues and PRs are welcome — see [CONTRIBUTING.md](CONTRIBUTING.md), [SECURITY.md](SECURITY.md) and the [Code of Conduct](CODE_OF_CONDUCT.md). Good places to start are issues labeled [`good first issue`](https://github.com/topsun-bot/proactive-workbench/labels/good%20first%20issue) and [`help wanted`](https://github.com/topsun-bot/proactive-workbench/labels/help%20wanted). New tools only need to implement the `tool.Tool` interface (see *Plugin interface* below).
+
+### License
+
+[Apache License 2.0](LICENSE).
+
+---
+
+## 中文说明
+
 主动性工作台：一个**纯软件**的工作台，不是机器人，没有四肢，就是一个持续运行的「大脑」。一套共用的 Go 主动 agent 内核，两个前端：Linux 命令行 + Mac 客户端（界面参考 [Today](https://today.ai/)）。
 
 ## 产品定义（2026-10-09 张益新确认；替代当天上午的「只做 Linux」）
