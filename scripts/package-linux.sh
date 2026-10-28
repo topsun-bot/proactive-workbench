@@ -29,6 +29,7 @@ CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -trimpath \
   ./cmd/proactivity
 
 chmod +x "$STAGE/workbench" "$STAGE/proactivity"
+cp "$ROOT/LICENSE" "$STAGE/LICENSE"
 
 cat > "$STAGE/README.txt" <<EOF
 Proactive Workbench ${VERSION} (${COMMIT})

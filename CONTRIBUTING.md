@@ -7,8 +7,8 @@ Thanks for your interest! Bug reports, docs fixes, new tools and core improvemen
 ```bash
 git clone https://github.com/topsun-bot/proactive-workbench.git
 cd proactive-workbench
-go test ./...          # Go 1.22+
-./macos/test.sh        # macOS only: client gate + EventKit-denied tests
+go test ./...          # Go 1.22+ on Linux; use Go 1.23+ on macOS (1.22 test binaries abort with "dyld missing LC_UUID")
+./macos/test.sh        # Linux + macOS: client gate + EventKit-denied tests (extra Foundation tests run on macOS)
 ```
 
 Useful entry points:

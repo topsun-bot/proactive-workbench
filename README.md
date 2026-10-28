@@ -22,7 +22,7 @@ go run ./cmd/proactivity brief --memory-fixture
 go run ./cmd/workbench serve                 # Today-style web UI on 127.0.0.1:8741
 ```
 
-Requires Go 1.22+. Prebuilt Linux `tar.gz` and an unsigned macOS DMG are attached to [Releases](https://github.com/topsun-bot/proactive-workbench/releases) and CI artifacts.
+Requires Go 1.22+ on Linux and Go 1.23+ on macOS (Go 1.22 test binaries abort on recent macOS with `dyld missing LC_UUID`). Every CI run uploads a Linux `tar.gz` and an unsigned macOS DMG as workflow artifacts; tagged versions are also published on [Releases](https://github.com/topsun-bot/proactive-workbench/releases).
 
 ### Contributing
 
@@ -144,7 +144,7 @@ go run ./cmd/workbench tools
 
 ```bash
 go test ./...
-./macos/test.sh   # macOS only
+./macos/test.sh   # Linux + macOS (Foundation tests only on macOS)
 ```
 
 ## Packages

@@ -12,7 +12,7 @@ Go module `github.com/topsun-bot/proactive-workbench`: a proactive agent core
 
 - Test: `go test ./...` (must pass before every commit)
 - Vet/format: `go vet ./...`, `gofmt -l .` (files you touch must be gofmt-clean)
-- macOS client tests: `./macos/test.sh` (macOS only)
+- Client gate tests: `./macos/test.sh` (runs on Linux and macOS; Foundation tests only on macOS)
 - Demo: `go run ./cmd/workbench demo --weather=rain|clear`
 - Package: `./scripts/package-linux.sh`, `./scripts/package-macos.sh`
 

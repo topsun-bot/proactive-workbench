@@ -45,6 +45,7 @@ clang -fobjc-arc \
 chmod +x "$APP_DIR/Contents/MacOS/TodayWorkbench"
 
 cp "$ROOT/macos/TodayWorkbench/Info.plist" "$APP_DIR/Contents/Info.plist"
+cp "$ROOT/LICENSE" "$APP_DIR/Contents/Resources/LICENSE"
 
 cat > "$APP_DIR/Contents/Resources/README.txt" <<EOF
 Proactive Workbench ${VERSION} (${COMMIT})

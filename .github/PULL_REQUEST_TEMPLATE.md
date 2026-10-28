@@ -5,7 +5,7 @@
 ## How it was tested
 
 - [ ] `go test ./...`
-- [ ] `./macos/test.sh` (if the macOS client changed)
+- [ ] `./macos/test.sh` (gate + EventKit-denied tests; runs on Linux and macOS)
 - [ ] Manual run (commands + output):
 
 ## Checklist
