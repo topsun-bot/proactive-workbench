@@ -114,6 +114,26 @@ func TestPlanEnglishPhrase(t *testing.T) {
 	}
 }
 
+func TestTodayDebugFixture(t *testing.T) {
+	var out bytes.Buffer
+	err := run([]string{
+		"today",
+		"--debug-fixture",
+		"--tz=Asia/Shanghai",
+		"--now=2026-10-10T07:15:00+08:00",
+	}, &out, &out)
+	if err != nil {
+		t.Fatal(err)
+	}
+	text := out.String()
+	if !strings.Contains(text, "MOCK") {
+		t.Fatalf("debug-fixture today must label MOCK weather\n%s", text)
+	}
+	if !strings.Contains(text, "propose=") {
+		t.Fatalf("missing propose\n%s", text)
+	}
+}
+
 func TestTodayBriefing(t *testing.T) {
 	var out bytes.Buffer
 	err := run([]string{

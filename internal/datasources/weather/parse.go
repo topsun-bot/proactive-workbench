@@ -13,6 +13,25 @@ const FixtureSourceLabel = "FIXTURE weather — not a live observation"
 // (still not a fixture; the bytes may be live or injected).
 const OpenMeteoSourceLabel = "open-meteo forecast API"
 
+// UserFacingUnavailable is the Chinese copy shown when a live query fails.
+// Logs and JSON error fields stay in English.
+const UserFacingUnavailable = "天气暂时查不到"
+
+// UnavailableSnapshot is a live-query failure. Temperature and precip stay
+// zero — callers must not substitute fixture numbers.
+func UnavailableSnapshot(loc Location, reason string) Snapshot {
+	if loc.Label == "" && loc.Latitude == 0 && loc.Longitude == 0 {
+		loc = DefaultLocation
+	}
+	return Snapshot{
+		Location: loc,
+		Current:  HourlyPoint{Condition: ConditionUnavailable},
+		IsMock:   false,
+		Source:   OpenMeteoSourceLabel,
+		Error:    reason,
+	}
+}
+
 type openMeteoResponse struct {
 	Latitude  float64 `json:"latitude"`
 	Longitude float64 `json:"longitude"`

@@ -9,19 +9,20 @@ import (
 type Condition string
 
 const (
-	ConditionUnknown Condition = "unknown"
-	ConditionClear   Condition = "clear"
-	ConditionCloudy  Condition = "cloudy"
-	ConditionRain    Condition = "rain"
-	ConditionSnow    Condition = "snow"
-	ConditionFog     Condition = "fog"
-	ConditionStorm   Condition = "storm"
+	ConditionUnknown     Condition = "unknown"
+	ConditionClear       Condition = "clear"
+	ConditionCloudy      Condition = "cloudy"
+	ConditionRain        Condition = "rain"
+	ConditionSnow        Condition = "snow"
+	ConditionFog         Condition = "fog"
+	ConditionStorm       Condition = "storm"
+	ConditionUnavailable Condition = "unavailable"
 )
 
 // ParseCondition accepts the fixture/CLI names (clear, rain, cloudy, …).
 func ParseCondition(raw string) (Condition, bool) {
 	switch Condition(strings.ToLower(strings.TrimSpace(raw))) {
-	case ConditionClear, ConditionCloudy, ConditionRain, ConditionSnow, ConditionFog, ConditionStorm, ConditionUnknown:
+	case ConditionClear, ConditionCloudy, ConditionRain, ConditionSnow, ConditionFog, ConditionStorm, ConditionUnknown, ConditionUnavailable:
 		return Condition(strings.ToLower(strings.TrimSpace(raw))), true
 	default:
 		return ConditionUnknown, false
@@ -53,6 +54,8 @@ func (c Condition) DisplayName() string {
 		return "Storm"
 	case ConditionUnknown:
 		return "Unknown"
+	case ConditionUnavailable:
+		return "Unavailable"
 	default:
 		return string(c)
 	}

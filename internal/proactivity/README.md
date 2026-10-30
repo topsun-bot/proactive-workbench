@@ -62,11 +62,11 @@ under `~/Library/Application Support/Today Workbench/` (macOS) or
 ## CLI
 
 ```
-go run ./cmd/proactivity tick --now=2026-10-10T15:00:00+08:00 --repeat=2
-go run ./cmd/proactivity brief --memory-fixture --now=2026-10-10T08:00:00+08:00
-go run ./cmd/proactivity tick --json
-go run ./cmd/proactivity serve --listen=127.0.0.1:8741 --memory-fixture
+go run ./cmd/proactivity tick --debug-fixture --now=2026-10-10T15:00:00+08:00 --repeat=2
+go run ./cmd/proactivity brief --debug-fixture --memory-fixture --now=2026-10-10T08:00:00+08:00
+go run ./cmd/proactivity tick --debug-fixture --json
+go run ./cmd/proactivity serve --listen=127.0.0.1:8741 --debug-fixture --memory-fixture
 ```
 
-Always fixture sensors unless a later adapter is injected. No live network
-in tests.
+Default is live Open-Meteo + local ICS (`config.json`). `--debug-fixture`
+(or `--weather`) selects labeled fixtures. No live network in unit tests.

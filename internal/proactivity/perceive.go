@@ -57,11 +57,14 @@ func Perceive(ctx context.Context, s Sensors) (Perception, error) {
 	}
 	wx, err := s.Weather.Snapshot(ctx, loc, at)
 	if err != nil {
-		return Perception{}, fmt.Errorf("proactivity: weather: %w", err)
+		// Live fetch failed: surface unavailable. Never substitute fixture numbers.
+		wx = weather.UnavailableSnapshot(loc, err.Error())
 	}
 	nowWx := wx.Current
-	if p, ok := wx.PointAt(at); ok {
-		nowWx = p
+	if wx.Available() {
+		if p, ok := wx.PointAt(at); ok {
+			nowWx = p
+		}
 	}
 
 	tomorrowAM, err := s.Clock.NextMorning(8, 0)
@@ -69,21 +72,25 @@ func Perceive(ctx context.Context, s Sensors) (Perception, error) {
 		return Perception{}, err
 	}
 	amWx := nowWx
-	if p, ok := wx.PointAt(tomorrowAM); ok {
-		amWx = p
+	if wx.Available() {
+		if p, ok := wx.PointAt(tomorrowAM); ok {
+			amWx = p
+		}
 	}
 
 	win := calendar.Window{From: at, To: at.Add(24 * time.Hour)}
-	events, err := s.Calendar.ListEvents(ctx, win)
-	if err != nil {
-		return Perception{}, fmt.Errorf("proactivity: calendar events: %w", err)
+	events, evErr := s.Calendar.ListEvents(ctx, win)
+	reminders, remErr := s.Calendar.ListReminders(ctx, win)
+	calErr := evErr
+	if calErr == nil {
+		calErr = remErr
 	}
-	reminders, err := s.Calendar.ListReminders(ctx, win)
-	if err != nil {
-		return Perception{}, fmt.Errorf("proactivity: calendar reminders: %w", err)
+	if calErr != nil {
+		events = nil
+		reminders = nil
 	}
 
-	return Perception{
+	p := Perception{
 		At:         at,
 		Situation:  sit,
 		Weather:    wx,
@@ -91,5 +98,10 @@ func Perceive(ctx context.Context, s Sensors) (Perception, error) {
 		TomorrowAM: amWx,
 		Events:     events,
 		Reminders:  reminders,
-	}, nil
+	}
+	if calErr != nil {
+		p.CalendarError = calErr.Error()
+		p.CalendarUserMessage = calendar.UserMessageForError(calErr)
+	}
+	return p, nil
 }

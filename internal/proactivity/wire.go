@@ -3,6 +3,7 @@ package proactivity
 import (
 	"time"
 
+	"github.com/topsun-bot/proactive-workbench/internal/datasources/weather"
 	"github.com/topsun-bot/proactive-workbench/internal/memory"
 )
 
@@ -20,25 +21,31 @@ type WireEvent struct {
 }
 
 type WireTick struct {
-	At                 string      `json:"at"`
-	Place              string      `json:"place"`
-	Activity           string      `json:"activity"`
-	WeatherCondition   string      `json:"weatherCondition"`
-	WeatherTempC       float64     `json:"weatherTempC"`
-	WeatherSource      string      `json:"weatherSource"`
-	CalendarCount      int         `json:"calendarCount"`
-	Events             []WireEvent `json:"events"`
-	GoalKind           string      `json:"goalKind"`
-	GoalTitle          string      `json:"goalTitle"`
-	GoalReason         string      `json:"goalReason"`
-	GoalScore          int         `json:"goalScore"`
-	PlanSteps          []string    `json:"planSteps"`
-	Propose            bool        `json:"propose"`
-	Reason             string      `json:"reason"`
-	Interrupt          bool        `json:"interrupt"`
-	DecisionReason     string      `json:"decisionReason"`
-	Fingerprint        string      `json:"fingerprint"`
-	SourcesAreFixtures bool        `json:"sourcesAreFixtures"`
+	At                  string      `json:"at"`
+	Place               string      `json:"place"`
+	Activity            string      `json:"activity"`
+	WeatherCondition    string      `json:"weatherCondition"`
+	WeatherTempC        float64     `json:"weatherTempC"`
+	WeatherSource       string      `json:"weatherSource"`
+	WeatherAvailable    bool        `json:"weatherAvailable"`
+	WeatherError        string      `json:"weatherError,omitempty"`
+	WeatherUserMessage  string      `json:"weatherUserMessage,omitempty"`
+	CalendarCount       int         `json:"calendarCount"`
+	CalendarAvailable   bool        `json:"calendarAvailable"`
+	CalendarError       string      `json:"calendarError,omitempty"`
+	CalendarUserMessage string      `json:"calendarUserMessage,omitempty"`
+	Events              []WireEvent `json:"events"`
+	GoalKind            string      `json:"goalKind"`
+	GoalTitle           string      `json:"goalTitle"`
+	GoalReason          string      `json:"goalReason"`
+	GoalScore           int         `json:"goalScore"`
+	PlanSteps           []string    `json:"planSteps"`
+	Propose             bool        `json:"propose"`
+	Reason              string      `json:"reason"`
+	Interrupt           bool        `json:"interrupt"`
+	DecisionReason      string      `json:"decisionReason"`
+	Fingerprint         string      `json:"fingerprint"`
+	SourcesAreFixtures  bool        `json:"sourcesAreFixtures"`
 }
 
 // WireSuggestion is one item in GET /v1/today data.suggestions[].
@@ -55,16 +62,22 @@ type WireSuggestion struct {
 // WireToday is the core Today contract. GET /v1/today returns it inside
 // the envelope. /api/today is owned by workbench serve (UI Snapshot).
 type WireToday struct {
-	At                 string           `json:"at"`
-	Place              string           `json:"place"`
-	Activity           string           `json:"activity"`
-	LocationSource     string           `json:"locationSource"`
-	WeatherCondition   string           `json:"weatherCondition"`
-	WeatherSource      string           `json:"weatherSource"`
-	GoalKind           string           `json:"goalKind"`
-	Brief              *Brief           `json:"brief,omitempty"`
-	Suggestions        []WireSuggestion `json:"suggestions"`
-	SourcesAreFixtures bool             `json:"sourcesAreFixtures"`
+	At                  string           `json:"at"`
+	Place               string           `json:"place"`
+	Activity            string           `json:"activity"`
+	LocationSource      string           `json:"locationSource"`
+	WeatherCondition    string           `json:"weatherCondition"`
+	WeatherSource       string           `json:"weatherSource"`
+	WeatherAvailable    bool             `json:"weatherAvailable"`
+	WeatherError        string           `json:"weatherError,omitempty"`
+	WeatherUserMessage  string           `json:"weatherUserMessage,omitempty"`
+	CalendarAvailable   bool             `json:"calendarAvailable"`
+	CalendarError       string           `json:"calendarError,omitempty"`
+	CalendarUserMessage string           `json:"calendarUserMessage,omitempty"`
+	GoalKind            string           `json:"goalKind"`
+	Brief               *Brief           `json:"brief,omitempty"`
+	Suggestions         []WireSuggestion `json:"suggestions"`
+	SourcesAreFixtures  bool             `json:"sourcesAreFixtures"`
 }
 
 type WireHealth struct {
@@ -90,25 +103,31 @@ func ResultToWire(r Result) WireTick {
 		})
 	}
 	return WireTick{
-		At:                 r.Perception.At.Format(time.RFC3339),
-		Place:              string(r.Perception.Situation.Place),
-		Activity:           string(r.Perception.Situation.Activity),
-		WeatherCondition:   string(r.Perception.NowWeather.Condition),
-		WeatherTempC:       r.Perception.NowWeather.TemperatureC,
-		WeatherSource:      r.Perception.Weather.Source,
-		CalendarCount:      len(r.Perception.Events),
-		Events:             events,
-		GoalKind:           string(r.Goal.Kind),
-		GoalTitle:          r.Goal.Title,
-		GoalReason:         r.Goal.Reason,
-		GoalScore:          r.Goal.Score,
-		PlanSteps:          r.Plan.Steps,
-		Propose:            r.Decision.Propose,
-		Reason:             r.Decision.Reason,
-		Interrupt:          r.Decision.Interrupt,
-		DecisionReason:     r.Decision.Reason,
-		Fingerprint:        r.Decision.Fingerprint,
-		SourcesAreFixtures: r.Perception.Weather.IsMock || r.Perception.Situation.IsMock,
+		At:                  r.Perception.At.Format(time.RFC3339),
+		Place:               string(r.Perception.Situation.Place),
+		Activity:            string(r.Perception.Situation.Activity),
+		WeatherCondition:    string(r.Perception.NowWeather.Condition),
+		WeatherTempC:        r.Perception.NowWeather.TemperatureC,
+		WeatherSource:       r.Perception.Weather.Source,
+		WeatherAvailable:    r.Perception.Weather.Available(),
+		WeatherError:        r.Perception.Weather.Error,
+		WeatherUserMessage:  weatherUserMessage(r.Perception),
+		CalendarCount:       len(r.Perception.Events),
+		CalendarAvailable:   r.Perception.CalendarError == "",
+		CalendarError:       r.Perception.CalendarError,
+		CalendarUserMessage: r.Perception.CalendarUserMessage,
+		Events:              events,
+		GoalKind:            string(r.Goal.Kind),
+		GoalTitle:           r.Goal.Title,
+		GoalReason:          r.Goal.Reason,
+		GoalScore:           r.Goal.Score,
+		PlanSteps:           r.Plan.Steps,
+		Propose:             r.Decision.Propose,
+		Reason:              r.Decision.Reason,
+		Interrupt:           r.Decision.Interrupt,
+		DecisionReason:      r.Decision.Reason,
+		Fingerprint:         r.Decision.Fingerprint,
+		SourcesAreFixtures:  r.Perception.Weather.IsMock || r.Perception.Situation.IsMock,
 	}
 }
 
@@ -128,17 +147,30 @@ func ResultToSuggestion(r Result) WireSuggestion {
 
 func ResultToToday(r Result, brief Brief) WireToday {
 	return WireToday{
-		At:                 r.Perception.At.Format(time.RFC3339),
-		Place:              string(r.Perception.Situation.Place),
-		Activity:           string(r.Perception.Situation.Activity),
-		LocationSource:     r.Perception.Situation.Source,
-		WeatherCondition:   string(r.Perception.NowWeather.Condition),
-		WeatherSource:      r.Perception.Weather.Source,
-		GoalKind:           string(r.Goal.Kind),
-		Brief:              &brief,
-		Suggestions:        []WireSuggestion{ResultToSuggestion(r)},
-		SourcesAreFixtures: r.Perception.Weather.IsMock || r.Perception.Situation.IsMock,
+		At:                  r.Perception.At.Format(time.RFC3339),
+		Place:               string(r.Perception.Situation.Place),
+		Activity:            string(r.Perception.Situation.Activity),
+		LocationSource:      r.Perception.Situation.Source,
+		WeatherCondition:    string(r.Perception.NowWeather.Condition),
+		WeatherSource:       r.Perception.Weather.Source,
+		WeatherAvailable:    r.Perception.Weather.Available(),
+		WeatherError:        r.Perception.Weather.Error,
+		WeatherUserMessage:  weatherUserMessage(r.Perception),
+		CalendarAvailable:   r.Perception.CalendarError == "",
+		CalendarError:       r.Perception.CalendarError,
+		CalendarUserMessage: r.Perception.CalendarUserMessage,
+		GoalKind:            string(r.Goal.Kind),
+		Brief:               &brief,
+		Suggestions:         []WireSuggestion{ResultToSuggestion(r)},
+		SourcesAreFixtures:  r.Perception.Weather.IsMock || r.Perception.Situation.IsMock,
 	}
+}
+
+func weatherUserMessage(p Perception) string {
+	if p.Weather.Available() {
+		return ""
+	}
+	return weather.UserFacingUnavailable
 }
 
 func RoutineRunsToWire(runs []RoutineRun) []WireRoutineRun {

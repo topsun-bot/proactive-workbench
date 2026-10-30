@@ -53,7 +53,9 @@ func NewMuxWithCore(now time.Time, loc *time.Location, wx weather.Condition, cor
 			stamp = stamp.In(loc)
 		}
 		reqCore := core
-		if live || r.URL.Query().Get("now") != "" || r.URL.Query().Get("weather") != "" {
+		// Query overrides rebuild a fixture Core. A live clock (now.IsZero at
+		// mux creation) keeps the injected Core so Open-Meteo/ICS stay live.
+		if r.URL.Query().Get("now") != "" || r.URL.Query().Get("weather") != "" {
 			built, err := NewServeCore(stamp, loc, cond)
 			if err == nil {
 				reqCore = built
@@ -78,6 +80,11 @@ func NewMuxWithCore(now time.Time, loc *time.Location, wx weather.Condition, cor
 }
 
 func ListenAndServe(addr string, now time.Time, loc *time.Location, wx weather.Condition) (string, *http.Server, string, error) {
+	return ListenAndServeHandler(addr, NewMux(now, loc, wx))
+}
+
+// ListenAndServeHandler binds the preferred loopback address and serves handler.
+func ListenAndServeHandler(addr string, handler http.Handler) (string, *http.Server, string, error) {
 	ln, err := ListenPreferred(addr)
 	if err != nil {
 		return "", nil, "", err
@@ -99,7 +106,7 @@ func ListenAndServe(addr string, now time.Time, loc *time.Location, wx weather.C
 		_ = ln.Close()
 		return "", nil, "", err
 	}
-	srv := &http.Server{Handler: NewMux(now, loc, wx)}
+	srv := &http.Server{Handler: handler}
 	go func() { _ = srv.Serve(ln) }()
 	return "http://" + host + ":" + port + "/", srv, portPath, nil
 }

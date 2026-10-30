@@ -72,7 +72,7 @@ func TestAPITodayLiveClockIsNotTheFixtureDate(t *testing.T) {
 		strings.Contains(snap.WeatherLine, "precip 5%") {
 		t.Fatalf("live default leaked mock clear weather: %q", snap.WeatherLine)
 	}
-	if !strings.Contains(snap.WeatherLine, "unavailable") {
+	if !strings.Contains(snap.WeatherLine, "天气暂时查不到") && !strings.Contains(snap.WeatherLine, "unavailable") {
 		t.Fatalf("expected unavailable weather, got %q", snap.WeatherLine)
 	}
 	if snap.WeatherMock {
